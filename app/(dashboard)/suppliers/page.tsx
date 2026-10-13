@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import { Truck, Search, Plus, MoreHorizontal, Mail, Phone, Building2 } from 'lucide-react';
+import CsvImportButton from '@/app/components/csv-import-button';
+import { importSuppliersCsv } from '@/app/actions/csv';
 
 export default async function SuppliersPage() {
     const supabase = await createClient();
@@ -16,12 +18,20 @@ export default async function SuppliersPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">仕入先管理</h1>
-                    <p className="text-slate-500 mt-1">部品や商品の発注先・仕入先マスタを管理します</p>
+                    <p className="text-slate-500 mt-1">部品や商品の仕入先マスタを管理します</p>
                 </div>
-                <Link href="/suppliers/new" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-indigo-200">
-                    <Plus size={18} />
-                    <span>新規仕入先を登録</span>
-                </Link>
+                <div className="flex bg-white items-center gap-2">
+                    <CsvImportButton 
+                        action={importSuppliersCsv} 
+                        label="CSV取込" 
+                        sampleCsvName="supplier_sample.csv"
+                        sampleCsvData="会社名,部署名,担当者名,メールアドレス,電話番号,支払条件\n株式会社仕入先A,営業部,営業太郎,supplier@example.com,03-9999-9999,月末締め翌月末払い"
+                    />
+                    <Link href="/suppliers/new" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-indigo-200">
+                        <Plus size={18} />
+                        <span>新規仕入先を登録</span>
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
@@ -50,14 +60,14 @@ export default async function SuppliersPage() {
                         <tbody className="divide-y divide-slate-100">
                             {suppliers && suppliers.length > 0 ? (
                                 suppliers.map((supplier) => (
-                                    <tr key={supplier.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <tr key={supplier.id} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
                                         <td className="py-4 px-6">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600 shrink-0 shadow-sm">
                                                     <Truck size={20} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-semibold text-slate-900">{supplier.company_name}</p>
+                                                    <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{supplier.company_name}</p>
                                                     {supplier.department && <p className="text-xs text-slate-500 mt-0.5">{supplier.department}</p>}
                                                 </div>
                                             </div>
@@ -86,9 +96,10 @@ export default async function SuppliersPage() {
                                             </div>
                                         </td>
                                         <td className="py-4 px-6 text-right">
-                                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                                                <MoreHorizontal size={18} />
-                                            </button>
+                                            <Link href={`/suppliers/${supplier.id}/edit`} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                                <MoreHorizontal size={16} />
+                                                編集
+                                            </Link>
                                         </td>
                                     </tr>
                                 ))

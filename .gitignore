@@ -20,6 +20,12 @@
 
 # production
 /build
+/output/
+
+# local temporary artifacts
+/tmp/
+/0
+/20
 
 # misc
 .DS_Store

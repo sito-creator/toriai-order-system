@@ -26,6 +26,25 @@ export default function LoginPage() {
         checkSession();
     }, [supabase]);
 
+    useEffect(() => {
+        const error = new URLSearchParams(window.location.search).get('error');
+        if (error === 'auth_callback_failed') {
+            showMessage('認証リンクを確認できませんでした。もう一度お試しください。', 'error');
+        } else if (error === 'email_confirmation_failed') {
+            showMessage('メール確認リンクが無効または期限切れです。', 'error');
+        }
+    }, []);
+
+    // ログイン済みユーザーをダッシュボードにリダイレクト
+    useEffect(() => {
+        if (loggedInUser) {
+            const timer = setTimeout(() => {
+                router.push('/dashboard');
+            }, 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [loggedInUser, router]);
+
     const toggleMode = (e: React.MouseEvent) => {
         e.preventDefault();
         setIsSignUpMode(!isSignUpMode);
@@ -48,6 +67,9 @@ export default function LoginPage() {
                 const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
+                    options: {
+                        emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    },
                 });
 
                 if (error) throw error;
@@ -188,6 +210,13 @@ export default function LoginPage() {
                                 {isSignUpMode ? 'ログイン' : '新規登録'}
                             </button>
                         </div>
+                        {!isSignUpMode && (
+                            <div className="text-center mt-3 text-sm">
+                                <a href="/forgot-password" className="text-indigo-300 hover:text-white transition-colors">
+                                    パスワードをお忘れですか？
+                                </a>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
-import { Package, Search, Plus, MoreHorizontal, Tag } from 'lucide-react';
+import { Package, Search, Plus, MoreHorizontal, Tag, Upload } from 'lucide-react';
+import CsvImportButton from '@/app/components/csv-import-button';
+import { importProductsCsv } from '@/app/actions/csv';
 
 export default async function ProductsPage() {
     const supabase = await createClient();
@@ -13,10 +15,18 @@ export default async function ProductsPage() {
                     <h1 className="text-2xl font-bold text-slate-900">商品管理</h1>
                     <p className="text-slate-500 mt-1">自社の商品およびサービスマスタを管理します</p>
                 </div>
-                <Link href="/products/new" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-indigo-200">
-                    <Plus size={18} />
-                    <span>新規商品を登録</span>
-                </Link>
+                <div className="flex bg-white items-center gap-2">
+                    <CsvImportButton 
+                        action={importProductsCsv} 
+                        label="CSV取込" 
+                        sampleCsvName="product_sample.csv"
+                        sampleCsvData="商品コード,商品名,標準単価,仕入単価,単位,カテゴリ,有効\nPROD-001,サンプル商品A,10000,5000,個,ソフトウェア,TRUE\nPROD-002,導入支援サービス,50000,0,式,サービス,TRUE"
+                    />
+                    <Link href="/products/new" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-indigo-200">
+                        <Plus size={18} />
+                        <span>新規商品を登録</span>
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
@@ -61,7 +71,7 @@ export default async function ProductsPage() {
                                             </span>
                                         </td>
                                         <td className="py-4 px-6 text-right font-bold text-slate-900 text-base">
-                                            ¥{(product.standard_price || 0).toLocaleString()} <span className="text-slate-400 font-normal text-xs ml-1">/ {product.unit || '個'}</span>
+                                            ¥{(product.standard_price || product.price || 0).toLocaleString()} <span className="text-slate-400 font-normal text-xs ml-1">/ {product.unit || '個'}</span>
                                         </td>
                                         <td className="py-4 px-6 text-center">{product.tax_rate || 10}%</td>
                                         <td className="py-4 px-6 text-center">

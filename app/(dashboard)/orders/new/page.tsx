@@ -1,24 +1,34 @@
 import { createClient } from '@/utils/supabase/server';
+import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { ArrowLeft, Save, ShoppingBag } from 'lucide-react';
 import OrderLinesForm from './order-lines-form';
 
 export default async function NewOrderPage() {
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId();
 
     // 顧客一覧を取得（プルダウン用）
     const { data: customers } = await supabase
         .from('customers')
         .select('id, company_name')
+        .eq('company_id', companyId)
         .order('company_name');
 
     // 商品一覧を取得（明細行用）
-    const { data: products } = await supabase
+    const { data: products, error: prodError } = await supabase
         .from('products')
-        .select('id, product_name, product_code, standard_price, tax_rate, unit')
-        .eq('is_active', true)
+        .select('*')
         .order('product_name');
+    
+    if (prodError) {
+        console.error("Products fetch error:", prodError);
+    }
+    
+    // 不要なWHERE句 eq('is_active', true) によるエラーを回避するためフロントエンドでフィルタリングするかそのまま表示
+    const activeProducts = products?.filter(p => p.is_active !== false) || [];
 
     // 受注番号を自動生成
     const year = new Date().getFullYear();
@@ -30,6 +40,7 @@ export default async function NewOrderPage() {
     async function createOrder(formData: FormData) {
         'use server';
         const supabase = await createClient();
+        const companyId = await getCurrentCompanyId();
 
         const linesJson = formData.get('lines') as string;
         const lines = linesJson ? JSON.parse(linesJson) : [];
@@ -41,29 +52,27 @@ export default async function NewOrderPage() {
         const { data: order, error } = await supabase
             .from('orders')
             .insert({
-                order_number: formData.get('order_number'),
+                company_id: companyId,
+                order_number: formData.get('order_number') || `ORD-${Date.now()}`,
                 customer_id: formData.get('customer_id') || null,
                 order_date: formData.get('order_date') || null,
                 delivery_date: formData.get('delivery_date') || null,
                 status: '確認待ち',
-                department: formData.get('department') || null,
                 source_type: '手入力',
-                subtotal,
-                tax_amount: taxAmount,
                 total_amount: totalAmount,
-                notes: formData.get('notes') || null,
             })
             .select('id')
             .single();
 
         if (error) {
             console.error('Order insert error:', error);
-            redirect('/orders');
+            throw new Error(`Order insertion failed: ${error.message} (code: ${error.code})`);
         }
 
         // 明細行を挿入
         if (lines.length > 0 && order) {
             const orderLines = lines.map((line: any, i: number) => ({
+                company_id: companyId,
                 order_id: order.id,
                 line_no: i + 1,
                 product_id: line.product_id || null,
@@ -77,6 +86,7 @@ export default async function NewOrderPage() {
             await supabase.from('order_lines').insert(orderLines);
         }
 
+        revalidatePath('/orders');
         redirect('/orders');
     }
 
@@ -106,7 +116,10 @@ export default async function NewOrderPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">取引先（顧客） <span className="text-rose-500">*</span></label>
+                            <label className="text-sm font-bold text-slate-700 flex items-center justify-between">
+                                <span>取引先（顧客） <span className="text-rose-500">*</span></span>
+                                <Link href="/customers/new" className="text-xs text-indigo-600 hover:text-indigo-800 font-normal">マスタにない場合はこちらから追加</Link>
+                            </label>
                             <select name="customer_id" required className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
                                 <option value="">選択してください</option>
                                 {(customers || []).map((c: any) => (
@@ -133,7 +146,7 @@ export default async function NewOrderPage() {
                 </div>
 
                 {/* 明細行（Client Component） */}
-                <OrderLinesForm products={products || []} />
+                <OrderLinesForm products={activeProducts} />
 
                 {/* 備考 */}
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-3 mb-6">

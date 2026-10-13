@@ -1,52 +1,55 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-    let supabaseResponse = NextResponse.next({
-        request,
-    })
+    const { pathname } = request.nextUrl;
+    let response = NextResponse.next({ request });
 
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {
-                getAll() {
-                    return request.cookies.getAll()
-                },
+                getAll: () => request.cookies.getAll(),
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-                    supabaseResponse = NextResponse.next({
-                        request,
-                    })
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+                    response = NextResponse.next({ request });
                     cookiesToSet.forEach(({ name, value, options }) =>
-                        supabaseResponse.cookies.set(name, value, options)
-                    )
+                        response.cookies.set(name, value, options)
+                    );
                 },
             },
         }
-    )
+    );
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    // Cookieの有無ではなく、署名と有効期限を検証する。
+    const { data: claimsData } = await supabase.auth.getClaims();
+    const isAuthenticated = Boolean(claimsData?.claims);
 
-    // Protect all non-login routes
-    if (
-        !user &&
-        !request.nextUrl.pathname.startsWith('/login')
-    ) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/login'
-        return NextResponse.redirect(url)
+    // 公開パスはそのまま通す
+    const isPublicPath =
+        pathname === '/' ||
+        pathname.startsWith('/lp') ||
+        pathname.startsWith('/forgot-password') ||
+        pathname.startsWith('/invite') ||
+        pathname.startsWith('/login') ||
+        pathname.startsWith('/auth') ||
+        pathname.startsWith('/api') ||
+        pathname.startsWith('/_next') ||
+        pathname.startsWith('/favicon');
+
+    if (!isAuthenticated && !isPublicPath) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.searchParams.set('next', pathname);
+        return NextResponse.redirect(url);
     }
 
-    // If user is logged in, redirect them away from the login page
-    if (user && request.nextUrl.pathname.startsWith('/login')) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/dashboard'
-        return NextResponse.redirect(url)
+    if (isAuthenticated && pathname.startsWith('/login')) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/dashboard';
+        return NextResponse.redirect(url);
     }
 
-    return supabaseResponse
+    return response;
 }

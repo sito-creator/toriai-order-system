@@ -1,5 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
+import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -7,7 +9,9 @@ export default function NewCustomerPage() {
     async function addCustomer(formData: FormData) {
         'use server';
         const supabase = await createClient();
+        const companyId = await getCurrentCompanyId();
         const { error } = await supabase.from('customers').insert([{
+            company_id: companyId,
             company_name: formData.get('company_name'),
             department: formData.get('department'),
             contact_name: formData.get('contact_name'),
@@ -18,6 +22,7 @@ export default function NewCustomerPage() {
         }]);
 
         if (!error) {
+            revalidatePath('/customers');
             redirect('/customers');
         } else {
             console.error(error);

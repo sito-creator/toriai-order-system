@@ -1,24 +1,38 @@
 import { createClient } from '@/utils/supabase/server';
+import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { ArrowLeft, Save, ShoppingCart } from 'lucide-react';
 import PurchaseLinesForm from './purchase-lines-form';
 
 export default async function NewPurchasePage() {
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId();
 
     // 仕入先一覧を取得
     const { data: suppliers } = await supabase
         .from('suppliers')
         .select('id, company_name')
+        .eq('company_id', companyId)
         .order('company_name');
 
-    // 商品一覧を取得
-    const { data: products } = await supabase
-        .from('products')
-        .select('id, product_name, product_code, standard_price, tax_rate, unit')
-        .eq('is_active', true)
-        .order('product_name');
+    // 仕入先商品一覧を取得（仕入先名も含む）
+    const { data: supplierProducts } = await supabase
+        .from('supplier_products')
+        .select('*, suppliers ( company_name )')
+        .order('supplier_product_name');
+
+    const formattedSupplierProducts = (supplierProducts || []).map((sp: any) => ({
+        id: sp.id,
+        supplier_product_name: sp.supplier_product_name || '',
+        supplier_product_code: sp.supplier_product_code || null,
+        purchase_price: sp.purchase_price || null,
+        tax_rate: sp.tax_rate || null,
+        unit: sp.unit || null,
+        supplier_id: sp.supplier_id || null,
+        supplier_name: sp.suppliers?.company_name || '',
+    }));
 
     // 発注番号を自動生成
     const year = new Date().getFullYear();
@@ -30,6 +44,7 @@ export default async function NewPurchasePage() {
     async function createPurchase(formData: FormData) {
         'use server';
         const supabase = await createClient();
+        const companyId = await getCurrentCompanyId();
 
         const linesJson = formData.get('lines') as string;
         const lines = linesJson ? JSON.parse(linesJson) : [];
@@ -43,31 +58,30 @@ export default async function NewPurchasePage() {
         const { data: purchase, error } = await supabase
             .from('purchases')
             .insert({
+                company_id: companyId,
                 purchase_number: formData.get('purchase_number'),
                 supplier_id: supplierId || null,
-                department: formData.get('department') || null,
                 purchase_date: formData.get('purchase_date') || null,
-                desired_delivery_date: formData.get('desired_delivery_date') || null,
+                expected_delivery_date: formData.get('expected_delivery_date') || null,
                 status: '下書き',
-                subtotal,
-                tax_amount: taxAmount,
                 total_amount: totalAmount,
-                notes: formData.get('notes') || null,
             })
             .select('id')
             .single();
 
         if (error) {
             console.error('Purchase insert error:', error);
-            redirect('/purchases');
+            throw new Error(`発注の保存に失敗しました: ${JSON.stringify(error)}`);
         }
 
         // 明細行を挿入
         if (lines.length > 0 && purchase) {
             const purchaseLines = lines.map((line: any, i: number) => ({
+                company_id: companyId,
                 purchase_id: purchase.id,
                 line_no: i + 1,
-                product_id: line.product_id || null,
+                supplier_product_id: line.supplier_product_id || null,
+                product_name: line.product_name || '',
                 quantity: Number(line.quantity) || 0,
                 unit: line.unit || null,
                 unit_price: Number(line.unit_price) || 0,
@@ -76,9 +90,13 @@ export default async function NewPurchasePage() {
                 tax_amount: Number(line.tax_amount) || 0,
             }));
 
-            await supabase.from('purchase_lines').insert(purchaseLines);
+            const { error: linesError } = await supabase.from('purchase_lines').insert(purchaseLines);
+            if (linesError) {
+                console.error('Purchase lines insert error:', linesError);
+            }
         }
 
+        revalidatePath('/purchases');
         redirect('/purchases');
     }
 
@@ -108,7 +126,10 @@ export default async function NewPurchasePage() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">仕入先</label>
+                            <label className="text-sm font-bold text-slate-700 flex items-center justify-between">
+                                <span>仕入先</span>
+                                <Link href="/suppliers/new" className="text-xs text-indigo-600 hover:text-indigo-800 font-normal">マスタにない場合はこちらから追加</Link>
+                            </label>
                             <select name="supplier_id" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
                                 <option value="">選択してください</option>
                                 {(suppliers || []).map((s: any) => (
@@ -129,7 +150,7 @@ export default async function NewPurchasePage() {
 
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">希望納品日</label>
-                            <input name="desired_delivery_date" type="date" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer" />
+                            <input name="expected_delivery_date" type="date" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer" />
                         </div>
 
                         <div className="space-y-2">
@@ -139,8 +160,8 @@ export default async function NewPurchasePage() {
                     </div>
                 </div>
 
-                {/* 明細行 */}
-                <PurchaseLinesForm products={products || []} />
+                {/* 明細行（仕入先商品を使用） */}
+                <PurchaseLinesForm supplierProducts={formattedSupplierProducts} />
 
                 {/* 備考 */}
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-3 mb-6">

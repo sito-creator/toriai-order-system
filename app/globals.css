@@ -24,3 +24,34 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Chromeの印刷ヘッダー（日時・タイトル）とフッター（URL）が入る余白をなくす。 */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  #invoice-print-area {
+    box-sizing: border-box;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 !important;
+    padding: 12mm !important;
+  }
+}

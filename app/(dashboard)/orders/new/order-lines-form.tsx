@@ -7,7 +7,8 @@ type Product = {
     id: string;
     product_name: string;
     product_code: string | null;
-    standard_price: number | null;
+    standard_price?: number | null;
+    price?: number | null;
     tax_rate: number | null;
     unit: string | null;
 };
@@ -20,10 +21,12 @@ type Line = {
     amount: number;
     tax_rate: number;
     tax_amount: number;
+    delivery_date?: string;
+    unit?: string;
 };
 
-export default function OrderLinesForm({ products }: { products: Product[] }) {
-    const [lines, setLines] = useState<Line[]>([]);
+export default function OrderLinesForm({ products, initialLines = [], title = "受注明細", showDeliveryDate = false }: { products: Product[], initialLines?: Line[], title?: string, showDeliveryDate?: boolean }) {
+    const [lines, setLines] = useState<Line[]>(initialLines);
     const hiddenInput = useRef<HTMLInputElement>(null);
 
     const addLine = () => {
@@ -35,6 +38,8 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
             amount: 0,
             tax_rate: 10,
             tax_amount: 0,
+            delivery_date: showDeliveryDate ? new Date().toISOString().split('T')[0] : undefined,
+            unit: '',
         }]);
     };
 
@@ -52,7 +57,7 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
                 if (product) {
                     line.product_id = product.id;
                     line.product_name = product.product_name;
-                    line.unit_price = Number(product.standard_price) || 0;
+                    line.unit_price = Number(product.price || product.standard_price) || 0;
                     line.tax_rate = Number(product.tax_rate) || 10;
                     line.amount = line.quantity * line.unit_price;
                     line.tax_amount = Math.floor(line.amount * line.tax_rate / 100);
@@ -77,17 +82,12 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
     const totalTax = lines.reduce((sum, l) => sum + l.tax_amount, 0);
     const grandTotal = subtotal + totalTax;
 
-    // hidden inputにJSON書き出し
-    if (hiddenInput.current) {
-        hiddenInput.current.value = JSON.stringify(lines);
-    }
-
     return (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4 mb-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <Package size={16} className="text-indigo-600" />
-                    受注明細
+                    {title}
                 </h2>
                 <button type="button" onClick={addLine} className="flex items-center gap-1.5 text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
                     <Plus size={16} />
@@ -95,7 +95,7 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
                 </button>
             </div>
 
-            <input ref={hiddenInput} type="hidden" name="lines" defaultValue="[]" />
+            <input type="hidden" name="lines" value={JSON.stringify(lines)} readOnly />
 
             {lines.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
@@ -109,15 +109,34 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
                         <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-indigo-200 transition-colors">
                             <div className="flex items-start gap-3">
                                 <span className="text-xs font-bold text-slate-400 bg-white border border-slate-200 rounded-lg w-7 h-7 flex items-center justify-center mt-6 shrink-0">{i + 1}</span>
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
+                                <div className={`flex-1 grid grid-cols-1 gap-3 ${showDeliveryDate ? 'md:grid-cols-7' : 'md:grid-cols-6'}`}>
+                                    {showDeliveryDate && (
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-500">納品日</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={line.delivery_date || ''}
+                                                onChange={(e) => updateLine(i, 'delivery_date', e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="md:col-span-2 space-y-1">
-                                        <label className="text-xs font-bold text-slate-500">商品</label>
+                                        <label className="text-xs font-bold text-slate-500 flex items-center justify-between">
+                                            <span>商品</span>
+                                            <a href="/products/new" target="_blank" className="text-[10px] text-indigo-600 hover:text-indigo-800 font-normal">マスタ追加</a>
+                                        </label>
                                         <select
                                             value={line.product_id}
                                             onChange={(e) => updateLine(i, 'product_id', e.target.value)}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2 cursor-pointer"
                                         >
-                                            <option value="">商品を選択</option>
+                                            {line.product_id === '' && line.product_name ? (
+                                                <option value="">{line.product_name}</option>
+                                            ) : (
+                                                <option value="">商品を選択</option>
+                                            )}
                                             {products.map(p => (
                                                 <option key={p.id} value={p.id}>{p.product_code ? `[${p.product_code}] ` : ''}{p.product_name}</option>
                                             ))}
@@ -144,6 +163,18 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
                                         />
                                     </div>
                                     <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-500">税率区分</label>
+                                        <select
+                                            value={line.tax_rate}
+                                            onChange={(e) => updateLine(i, 'tax_rate', Number(e.target.value))}
+                                            className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2"
+                                        >
+                                            <option value={10}>10%（標準）</option>
+                                            <option value={8}>8%（軽減）</option>
+                                            <option value={0}>非課税</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-500">小計</label>
                                         <div className="py-2 px-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono text-indigo-700">
                                             ¥{line.amount.toLocaleString()}
@@ -159,6 +190,14 @@ export default function OrderLinesForm({ products }: { products: Product[] }) {
 
                     {/* 合計 */}
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mt-4">
+                        <div className="flex justify-end gap-5 mb-3 text-xs text-slate-600">
+                            {[10, 8, 0].map(rate => {
+                                const taxable = lines.filter(l => Number(l.tax_rate) === rate).reduce((sum, l) => sum + l.amount, 0);
+                                const tax = lines.filter(l => Number(l.tax_rate) === rate).reduce((sum, l) => sum + l.tax_amount, 0);
+                                if (!taxable) return null;
+                                return <span key={rate}>{rate === 0 ? '非課税' : `${rate}%対象`}: ¥{taxable.toLocaleString()}（税 ¥{tax.toLocaleString()}）</span>;
+                            })}
+                        </div>
                         <div className="flex justify-end gap-8 text-sm">
                             <div className="text-right space-y-1.5">
                                 <p className="text-slate-500">小計</p>

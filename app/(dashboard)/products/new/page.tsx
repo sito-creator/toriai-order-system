@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -13,11 +14,11 @@ export default function NewProductPage() {
             category: formData.get('category'),
             unit: formData.get('unit'),
             standard_price: Number(formData.get('standard_price')),
-            tax_rate: Number(formData.get('tax_rate')),
             is_active: formData.get('is_active') === 'on'
         }]);
 
         if (!error) {
+            revalidatePath('/products');
             redirect('/products');
         } else {
             console.error(error);

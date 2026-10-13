@@ -1,13 +1,18 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
-import { Building2, Search, Plus, MoreHorizontal, Mail, Phone } from 'lucide-react';
+import { getCurrentCompanyId } from '@/utils/auth';
+import { Building2, Search, Plus, MoreHorizontal, Mail, Phone, Upload } from 'lucide-react';
+import CsvImportButton from '@/app/components/csv-import-button';
+import { importCustomersCsv } from '@/app/actions/csv';
+import DedupeButton from '@/app/components/dedupe-button';
 
 export default async function CustomersPage() {
     const supabase = await createClient();
-    // Fetch from the actual Supabase database table we just created!
+    const companyId = await getCurrentCompanyId();
     const { data: customers } = await supabase
         .from('customers')
         .select('*')
+        .eq('company_id', companyId)
         .order('created_at', { ascending: false });
 
     return (
@@ -17,10 +22,19 @@ export default async function CustomersPage() {
                     <h1 className="text-2xl font-bold text-slate-900">顧客管理</h1>
                     <p className="text-slate-500 mt-1">取引先企業の情報を管理・登録します</p>
                 </div>
-                <Link href="/customers/new" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-indigo-200">
-                    <Plus size={18} />
-                    <span>新規顧客を登録</span>
-                </Link>
+                <div className="flex bg-white items-center gap-2">
+                    <DedupeButton />
+                    <CsvImportButton 
+                        action={importCustomersCsv} 
+                        label="CSV取込" 
+                        sampleCsvName="customer_sample.csv"
+                        sampleCsvData="会社名,部署名,担当者名,メールアドレス,電話番号,締日,支払条件\n株式会社サンプル,システム部,サンプル太郎,test@example.com,03-1234-5678,月末,翌月末払い"
+                    />
+                    <Link href="/customers/new" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-indigo-200">
+                        <Plus size={18} />
+                        <span>新規顧客を登録</span>
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -51,14 +65,14 @@ export default async function CustomersPage() {
                         <tbody className="divide-y divide-slate-100">
                             {customers && customers.length > 0 ? (
                                 customers.map((customer) => (
-                                    <tr key={customer.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <tr key={customer.id} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
                                         <td className="py-4 px-6">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500 shrink-0 shadow-sm">
                                                     <Building2 size={20} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-semibold text-slate-900">{customer.company_name}</p>
+                                                    <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{customer.company_name}</p>
                                                     {customer.department && <p className="text-xs text-slate-500 mt-0.5">{customer.department}</p>}
                                                 </div>
                                             </div>
@@ -87,9 +101,10 @@ export default async function CustomersPage() {
                                             </div>
                                         </td>
                                         <td className="py-4 px-6 text-right">
-                                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                                                <MoreHorizontal size={18} />
-                                            </button>
+                                            <Link href={`/customers/${customer.id}/edit`} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                                <MoreHorizontal size={16} />
+                                                編集
+                                            </Link>
                                         </td>
                                     </tr>
                                 ))

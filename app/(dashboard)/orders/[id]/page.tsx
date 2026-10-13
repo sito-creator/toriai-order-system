@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
-import { notFound } from 'next/navigation';
+import { getCurrentCompanyId } from '@/utils/auth';
+import { notFound, redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, Clock, AlertCircle, Package, Calendar, Building2, FileText, Truck } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, AlertCircle, Package, Calendar, Building2, FileText, Truck, FileOutput, Calculator, Pencil } from 'lucide-react';
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -11,13 +13,22 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         .from('orders')
         .select(`
             *,
-            customers ( id, company_name, contact_name, email, phone ),
-            order_lines ( *, products ( product_name, product_code ) )
+            customers ( id, company_name, contact_name, email, phone )
         `)
         .eq('id', id)
         .single();
 
+    const { data: orderLines } = await supabase
+        .from('order_lines')
+        .select('*, products (product_name)')
+        .eq('order_id', id);
+
+    if (order && orderLines) {
+        order.order_lines = orderLines;
+    }
+
     if (error || !order) {
+        console.error("Order load error:", error);
         notFound();
     }
 
@@ -33,6 +44,78 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
     const statusConfig = getStatusConfig(order.status);
 
+    async function updateOrderStatus(formData: FormData) {
+        'use server';
+        const newStatus = formData.get('status') as string;
+        if (!newStatus) return;
+        const supabase = await createClient();
+        await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+        revalidatePath(`/orders/${id}`);
+        revalidatePath('/orders');
+    }
+
+    async function createQuoteFromOrder() {
+        'use server';
+        const supabase = await createClient();
+        const companyId = await getCurrentCompanyId();
+        const quote_number = `QUO-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        const { data: newQuote, error: quoError } = await supabase.from('quotes').insert({
+            company_id: companyId,
+            quote_number,
+            customer_id: order.customer_id,
+            subject: `${order.order_number} のお見積り`,
+            total_amount: order.total_amount,
+            status: '下書き',
+            valid_until: order.delivery_date
+        }).select().single();
+
+        if (!quoError && newQuote && order.order_lines && order.order_lines.length > 0) {
+            const quoteLines = order.order_lines.map((line: any, i: number) => ({
+                company_id: companyId,
+                quote_id: newQuote.id,
+                line_no: i + 1,
+                item_name: line.products?.product_name || `商品ID: ${line.product_id}`,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                amount: line.amount
+            }));
+            // テーブルが存在しない場合を考慮しエラーを無視
+            await supabase.from('quote_lines').insert(quoteLines);
+        }
+        redirect('/quotes');
+    }
+
+    async function createInvoiceFromOrder() {
+        'use server';
+        const supabase = await createClient();
+        const companyId = await getCurrentCompanyId();
+        const invoice_number = `INV-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        const { data: newInvoice, error: invError } = await supabase.from('invoices').insert({
+            company_id: companyId,
+            invoice_number,
+            customer_id: order.customer_id,
+            subtotal: order.total_amount,
+            tax_amount: (order.total_amount || 0) * 0.1,
+            grand_total: (order.total_amount || 0) * 1.1,
+            status: '下書き',
+            issue_date: new Date().toISOString().split('T')[0]
+        }).select().single();
+
+        if (!invError && newInvoice && order.order_lines && order.order_lines.length > 0) {
+            const invoiceLines = order.order_lines.map((line: any, i: number) => ({
+                company_id: companyId,
+                invoice_id: newInvoice.id,
+                line_no: i + 1,
+                item_name: line.products?.product_name || `商品ID: ${line.product_id}`,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                amount: line.amount
+            }));
+            await supabase.from('invoice_lines').insert(invoiceLines);
+        }
+        redirect('/invoices');
+    }
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -43,12 +126,49 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <div className="flex-1">
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-bold text-slate-900">{order.order_number || '受注番号なし'}</h1>
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${statusConfig.color}`}>
-                            {statusConfig.icon}
-                            {order.status}
-                        </span>
+                        <form action={updateOrderStatus} className="flex items-center gap-2">
+                            <div className={`relative inline-flex items-center rounded-full border ${statusConfig.color} hover:opacity-80 transition-opacity`}>
+                                <div className="pl-3 pointer-events-none">
+                                    {statusConfig.icon}
+                                </div>
+                                <select 
+                                    name="status" 
+                                    defaultValue={order.status}
+                                    className="appearance-none bg-transparent pl-1.5 pr-8 py-1.5 text-xs font-bold outline-none cursor-pointer"
+                                >
+                                    <option value="確認待ち">確認待ち</option>
+                                    <option value="新規受注">新規受注</option>
+                                    <option value="受注確定">受注確定</option>
+                                    <option value="出荷準備中">出荷準備中</option>
+                                    <option value="納品済">納品済</option>
+                                    <option value="キャンセル">キャンセル</option>
+                                </select>
+                                <div className="absolute right-2.5 pointer-events-none opacity-50 text-[10px]">
+                                    ▼
+                                </div>
+                            </div>
+                            <button type="submit" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-full font-bold transition-colors shadow-sm">
+                                更新
+                            </button>
+                        </form>
                     </div>
                     <p className="text-slate-500 mt-1">受注の詳細情報と明細を確認できます</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Link href={`/orders/${id}/edit`} className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-medium transition-colors shadow-sm">
+                        <Pencil size={16} className="text-slate-500" />
+                        <span>編集</span>
+                    </Link>
+                    <form action={createQuoteFromOrder}>
+                        <button type="submit" className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-medium transition-colors shadow-sm">
+                            <Calculator size={16} className="text-indigo-500" />
+                            <span>見積書作成</span>
+                        </button>
+                    </form>
+                    <Link href={`/invoices/new?orderId=${order.id}`} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white border border-transparent rounded-xl font-medium transition-colors shadow-sm">
+                        <FileOutput size={16} />
+                        <span>請求書作成</span>
+                    </Link>
                 </div>
             </div>
 
@@ -111,7 +231,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                         <td className="py-4 px-6 text-slate-400 font-mono">{line.line_no || i + 1}</td>
                                         <td className="py-4 px-6 font-semibold text-slate-900">
                                             {line.products?.product_name || '商品情報なし'}
-                                            {line.products?.product_code && <span className="text-xs text-slate-400 ml-2 font-mono">({line.products.product_code})</span>}
                                         </td>
                                         <td className="py-4 px-6 text-right font-medium">{line.quantity || 0}</td>
                                         <td className="py-4 px-6 text-right">¥{(line.unit_price || 0).toLocaleString()}</td>

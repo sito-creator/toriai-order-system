@@ -3,17 +3,19 @@
 import { useState, useRef } from 'react';
 import { Plus, Trash2, Package } from 'lucide-react';
 
-type Product = {
+type SupplierProduct = {
     id: string;
-    product_name: string;
-    product_code: string | null;
-    standard_price: number | null;
+    supplier_product_name: string;
+    supplier_product_code: string | null;
+    purchase_price: number | null;
     tax_rate: number | null;
     unit: string | null;
+    supplier_id: string | null;
+    supplier_name?: string;
 };
 
 type Line = {
-    product_id: string;
+    supplier_product_id: string;
     product_name: string;
     quantity: number;
     unit: string;
@@ -23,13 +25,24 @@ type Line = {
     tax_amount: number;
 };
 
-export default function PurchaseLinesForm({ products }: { products: Product[] }) {
+export default function PurchaseLinesForm({ 
+    supplierProducts, 
+    selectedSupplierId 
+}: { 
+    supplierProducts: SupplierProduct[];
+    selectedSupplierId?: string;
+}) {
     const [lines, setLines] = useState<Line[]>([]);
-    const hiddenInput = useRef<HTMLInputElement>(null);
+    const [supplierId, setSupplierId] = useState(selectedSupplierId || '');
+
+    // 選択中の仕入先の商品だけフィルタリング
+    const filteredProducts = supplierId 
+        ? supplierProducts.filter(sp => sp.supplier_id === supplierId)
+        : supplierProducts;
 
     const addLine = () => {
         setLines(prev => [...prev, {
-            product_id: '',
+            supplier_product_id: '',
             product_name: '',
             quantity: 1,
             unit: '個',
@@ -49,14 +62,14 @@ export default function PurchaseLinesForm({ products }: { products: Product[] })
             const updated = [...prev];
             const line = { ...updated[index] };
 
-            if (field === 'product_id') {
-                const product = products.find(p => p.id === value);
-                if (product) {
-                    line.product_id = product.id;
-                    line.product_name = product.product_name;
-                    line.unit_price = Number(product.standard_price) || 0;
-                    line.tax_rate = Number(product.tax_rate) || 10;
-                    line.unit = product.unit || '個';
+            if (field === 'supplier_product_id') {
+                const sp = supplierProducts.find(p => p.id === value);
+                if (sp) {
+                    line.supplier_product_id = sp.id;
+                    line.product_name = sp.supplier_product_name;
+                    line.unit_price = Number(sp.purchase_price) || 0;
+                    line.tax_rate = Number(sp.tax_rate) || 10;
+                    line.unit = sp.unit || '個';
                     line.amount = line.quantity * line.unit_price;
                     line.tax_amount = Math.floor(line.amount * line.tax_rate / 100);
                 }
@@ -76,13 +89,14 @@ export default function PurchaseLinesForm({ products }: { products: Product[] })
         });
     };
 
+    // 仕入先が変更された時にフォームの仕入先IDを更新
+    const handleSupplierChange = (newSupplierId: string) => {
+        setSupplierId(newSupplierId);
+    };
+
     const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
     const totalTax = lines.reduce((sum, l) => sum + l.tax_amount, 0);
     const grandTotal = subtotal + totalTax;
-
-    if (hiddenInput.current) {
-        hiddenInput.current.value = JSON.stringify(lines);
-    }
 
     return (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4 mb-6">
@@ -97,7 +111,10 @@ export default function PurchaseLinesForm({ products }: { products: Product[] })
                 </button>
             </div>
 
-            <input ref={hiddenInput} type="hidden" name="lines" defaultValue="[]" />
+            {/* hidden input: JSON形式でフォーム送信 */}
+            <input type="hidden" name="lines" value={JSON.stringify(lines)} readOnly />
+            {/* 仕入先IDの変更を親フォームで検知するためのhidden listener */}
+            <input type="hidden" name="supplier_filter_id" value={supplierId} readOnly />
 
             {lines.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
@@ -113,16 +130,24 @@ export default function PurchaseLinesForm({ products }: { products: Product[] })
                                 <span className="text-xs font-bold text-slate-400 bg-white border border-slate-200 rounded-lg w-7 h-7 flex items-center justify-center mt-6 shrink-0">{i + 1}</span>
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-3">
                                     <div className="md:col-span-2 space-y-1">
-                                        <label className="text-xs font-bold text-slate-500">商品</label>
+                                        <label className="text-xs font-bold text-slate-500 flex items-center justify-between">
+                                            <span>仕入先商品</span>
+                                            <a href="/supplier-products/new" target="_blank" className="text-[10px] text-indigo-600 hover:text-indigo-800 font-normal">マスタ追加</a>
+                                        </label>
                                         <select
-                                            value={line.product_id}
-                                            onChange={(e) => updateLine(i, 'product_id', e.target.value)}
+                                            value={line.supplier_product_id}
+                                            onChange={(e) => updateLine(i, 'supplier_product_id', e.target.value)}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2 cursor-pointer"
                                         >
                                             <option value="">商品を選択</option>
-                                            {products.map(p => (
-                                                <option key={p.id} value={p.id}>{p.product_code ? `[${p.product_code}] ` : ''}{p.product_name}</option>
+                                            {filteredProducts.map(sp => (
+                                                <option key={sp.id} value={sp.id}>
+                                                    {sp.supplier_product_code ? `[${sp.supplier_product_code}] ` : ''}{sp.supplier_product_name}
+                                                </option>
                                             ))}
+                                            {filteredProducts.length === 0 && (
+                                                <option value="" disabled>（仕入先商品が未登録です）</option>
+                                            )}
                                         </select>
                                     </div>
                                     <div className="space-y-1">
