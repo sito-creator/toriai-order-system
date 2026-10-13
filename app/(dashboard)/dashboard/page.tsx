@@ -46,9 +46,15 @@ export default async function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('company_id', companyId);
 
+    // Supabase の結合結果は型定義上配列になる場合があるため、画面用に単一の顧客へ正規化する。
+    const orders = (allOrders || []).map((order) => ({
+        ...order,
+        customers: Array.isArray(order.customers) ? order.customers[0] || null : order.customers,
+    }));
+
     return (
         <DashboardClient
-            orders={allOrders || []}
+            orders={orders}
             purchases={allPurchases || []}
             invoices={allInvoices || []}
             customerCount={customerCount || 0}
