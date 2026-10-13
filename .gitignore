@@ -21,6 +21,7 @@
 # production
 /build
 /output/
+/public/lp
 
 # local temporary artifacts
 /tmp/
