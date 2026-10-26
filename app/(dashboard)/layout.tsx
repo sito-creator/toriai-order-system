@@ -50,6 +50,7 @@ const allSidebarSections: SidebarSection[] = [
     {
         label: '業務管理',
         items: [
+            { name: 'POSレジ', path: '/pos', icon: <ShoppingCart size={20} /> },
             { name: '受注管理', path: '/orders', icon: <ShoppingBag size={20} /> },
             { name: '見積書管理', path: '/quotes', icon: <Clipboard size={20} /> },
             { name: '請求書管理', path: '/invoices', icon: <FileText size={20} /> },
