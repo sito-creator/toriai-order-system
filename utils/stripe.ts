@@ -2,6 +2,11 @@ type StripeCheckoutSession = {
     id: string;
     url: string | null;
     expires_at: number;
+    payment_status?: string;
+    status?: string;
+    amount_total?: number;
+    currency?: string;
+    metadata?: { pos_sale_id?: string };
 };
 
 type StripeErrorResponse = {
@@ -14,6 +19,24 @@ function getStripeSecretKey() {
         throw new Error('Stripeが未設定です。STRIPE_SECRET_KEYを設定してください。');
     }
     return key;
+}
+
+export async function createPosCheckout(input: { id: string; amount: number; account: string; origin: string }) {
+    const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getStripeSecretKey()}`, 'Stripe-Account': input.account, 'Idempotency-Key': `pos-${input.id}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ mode: 'payment', locale: 'ja', success_url: `${input.origin}/pos/payment-result`, cancel_url: `${input.origin}/pos/payment-result?cancelled=1`, 'payment_method_types[0]': 'card', 'metadata[pos_sale_id]': input.id, 'line_items[0][price_data][currency]': 'jpy', 'line_items[0][price_data][unit_amount]': String(input.amount), 'line_items[0][price_data][product_data][name]': `店頭会計 ${input.id.slice(0,8)}`, 'line_items[0][quantity]': '1' }),
+        cache: 'no-store',
+    });
+    const session = await response.json();
+    if (!response.ok || !session.url) throw new Error(session.error?.message || '決済URLを発行できません。');
+    return session as StripeCheckoutSession;
+}
+
+export async function retrievePosCheckout(id: string, account: string) {
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${getStripeSecretKey()}`, 'Stripe-Account': account }, cache: 'no-store' });
+    if (!response.ok) throw new Error('Stripe決済状態を確認できません。');
+    return await response.json() as StripeCheckoutSession;
 }
 
 async function stripeRequest<T>(path: string, body: URLSearchParams, stripeAccountId?: string): Promise<T> {

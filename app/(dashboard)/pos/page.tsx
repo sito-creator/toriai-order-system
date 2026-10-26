@@ -8,5 +8,5 @@ export default async function PosPage() {
     if (!profile?.company_id) return <p>ログインと会社設定を確認してください。</p>;
     const { data, error } = await db.from('products').select('*').eq('company_id', profile.company_id).eq('is_active', true).order('product_name');
     if (error) return <p>商品を読み込めませんでした。</p>;
-    return <PosRegister products={(data || []).map(p => ({ id: p.id, name: p.product_name, price: Number(p.standard_price || p.price || 0), tax_rate: Number(p.tax_rate ?? 10), category: p.category || 'サービス' }))} />;
+    return <PosRegister products={(data || []).map(p => ({ id: p.id, name: p.product_name, price: Number(p.standard_price || p.price || 0), tax_rate: Number(p.tax_rate ?? 10), category: p.category || 'サービス', stock:p.stock, track_inventory:Boolean(p.track_inventory) }))} />;
 }

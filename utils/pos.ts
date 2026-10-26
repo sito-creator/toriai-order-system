@@ -1,5 +1,11 @@
 export type PosLine = { product_id: string; name: string; price: number; quantity: number; tax_rate: number };
 
+export function posPaymentState(session: { metadata?: { pos_sale_id?: string }; amount_total?: number; currency?: string; payment_status?: string; status?: string }, sale: {id:string;total:number}): 'paid' | 'voided' | null {
+    if (session.metadata?.pos_sale_id !== sale.id || session.amount_total !== sale.total || session.currency !== 'jpy') throw new Error('決済内容が会計と一致しません。');
+    if (session.payment_status === 'paid') return 'paid';
+    return session.status === 'expired' ? 'voided' : null;
+}
+
 // 商品マスタの単価は税抜。税率ごとに合算して消費税を切り捨てる。
 export function posTotals(lines: PosLine[]) {
     const groups = new Map<number, number>();

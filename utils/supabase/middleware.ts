@@ -28,6 +28,7 @@ export async function updateSession(request: NextRequest) {
 
     // 公開パスはそのまま通す
     const isPublicPath =
+        pathname === '/pos/payment-result' ||
         pathname === '/' ||
         pathname.startsWith('/lp') ||
         pathname.startsWith('/forgot-password') ||
