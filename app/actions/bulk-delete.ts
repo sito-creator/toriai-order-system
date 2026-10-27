@@ -6,6 +6,9 @@ import { revalidatePath } from 'next/cache';
 export async function bulkDeleteOrders(ids: string[]) {
     if (!ids.length) return;
     const supabase = await createClient();
+    const {data: linked, error: checkError} = await supabase.from('orders').select('pos_sale_id').in('id',ids);
+    if (checkError) throw new Error(checkError.message);
+    if (linked?.some(o => o.pos_sale_id)) throw new Error('POS連携受注は削除できません。POSレジから取消してください。');
 
     // 明細行を先に削除
     await supabase.from('order_lines').delete().in('order_id', ids);

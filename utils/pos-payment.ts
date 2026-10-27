@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/utils/supabase/admin';
 import { createPosCheckout, retrievePosCheckout } from '@/utils/stripe';
 import { posPaymentState } from '@/utils/pos';
+import { revalidatePath } from 'next/cache';
 
 export async function ensurePosCheckout(id: string, companyId: string) {
     const db = createAdminClient();
@@ -23,5 +24,7 @@ export async function syncPosPayment(id: string, companyId: string) {
     if (!target) return sale;
     const { data, error } = await createAdminClient().rpc('pos_transition',{p_id:id,p_company:companyId,p_target:target,p_reason:target==='voided'?'Stripe決済期限切れ':null});
     if (error) throw new Error('決済結果の保存に失敗しました。');
+    revalidatePath('/orders');
+    revalidatePath('/dashboard');
     return data;
 }

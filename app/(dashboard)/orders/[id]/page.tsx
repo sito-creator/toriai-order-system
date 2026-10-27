@@ -32,6 +32,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         notFound();
     }
 
+    if (order.pos_sale_id) {
+        return <div className="p-8 space-y-6">
+            <Link href="/orders" className="text-indigo-600">← 受注一覧</Link>
+            <h1 className="text-2xl font-bold">POS連携受注</h1>
+            <p>{order.order_number} ／ {order.status}</p>
+            <p>会計日：{order.order_date}　店頭のお客様</p>
+            <table className="w-full text-left"><thead><tr><th>商品・サービス</th><th>数量</th><th>税抜単価</th><th>税率</th><th>税抜金額</th></tr></thead>
+                <tbody>{(orderLines || []).map(line => <tr key={line.id} className="border-b"><td className="py-3">{line.item_name || line.products?.product_name}</td><td>{line.quantity}</td><td>¥{Number(line.unit_price).toLocaleString()}</td><td>{line.tax_rate}%</td><td>¥{Number(line.amount).toLocaleString()}</td></tr>)}</tbody></table>
+            <p className="text-xl font-bold">税込合計：¥{Number(order.total_amount).toLocaleString()}</p>
+            <p>POS会計と自動同期しています。編集・取消・レシート発行はPOSレジの履歴から行ってください。取消済の会計はダッシュボード売上に含まれません。</p>
+            <Link href="/pos" className="text-indigo-600">POSレジ・会計履歴を開く →</Link>
+        </div>;
+    }
+
     const getStatusConfig = (status: string) => {
         switch (status) {
             case '確認待ち': return { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: <AlertCircle size={16} /> };
@@ -88,6 +102,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     async function createInvoiceFromOrder() {
         'use server';
         const supabase = await createClient();
+        const {data: currentOrder} = await supabase.from('orders').select('pos_sale_id').eq('id',id).single();
+        if (!currentOrder || currentOrder.pos_sale_id) throw new Error('POS会計から重複請求書を作成することはできません。');
         const companyId = await getCurrentCompanyId();
         const invoice_number = `INV-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
         const { data: newInvoice, error: invError } = await supabase.from('invoices').insert({

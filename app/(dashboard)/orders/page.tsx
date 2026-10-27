@@ -8,6 +8,7 @@ import OrdersTable from '@/app/components/orders-table';
 export const dynamic = 'force-dynamic';
 
 const ORDER_STATUSES = [
+    { label: '取消済', color: 'bg-rose-100 text-rose-700 border-rose-200' },
     { label: '確認待ち', color: 'bg-amber-100 text-amber-700 border-amber-200' },
     { label: '新規受注', color: 'bg-amber-100 text-amber-700 border-amber-200' },
     { label: '受注確定', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
@@ -37,6 +38,7 @@ export default async function OrdersPage({
     const { data: orders } = await dbQuery;
 
     const serializedOrders = (orders || []).map(o => ({
+        pos_sale_id: o.pos_sale_id || null,
         id: o.id,
         order_number: o.order_number,
         source_type: o.source_type,

@@ -7,6 +7,7 @@ import BulkDeleteTable from '@/app/components/bulk-delete-table';
 import { bulkDeleteOrders } from '@/app/actions/bulk-delete';
 
 type OrderRow = {
+    pos_sale_id: string | null;
     id: string;
     order_number: string | null;
     source_type: string | null;
@@ -26,7 +27,7 @@ export default function OrdersTable({
 }) {
     return (
         <BulkDeleteTable
-            ids={orders.map(o => o.id)}
+            ids={orders.filter(o => !o.pos_sale_id).map(o => o.id)}
             deleteAction={bulkDeleteOrders}
             entityName="受注データ"
         >
@@ -59,6 +60,7 @@ export default function OrdersTable({
                                             <input
                                                 type="checkbox"
                                                 checked={selectedIds.has(order.id)}
+                                                disabled={!!order.pos_sale_id}
                                                 onChange={() => toggleId(order.id)}
                                                 className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                             />
@@ -72,10 +74,10 @@ export default function OrdersTable({
                                             </div>
                                         </td>
                                         <td className="py-4 px-6 font-semibold text-slate-800">
-                                            {order.customer_name || <span className="text-slate-400 font-normal">名称未設定</span>}
+                                            {order.customer_name || <span className="text-slate-400 font-normal">{order.pos_sale_id ? '店頭のお客様' : '名称未設定'}</span>}
                                         </td>
                                         <td className="py-4 px-6">
-                                            <OrderStatusSelector orderId={order.id} initialStatus={order.status} />
+                                            {order.pos_sale_id ? <span>{order.status}（POS同期）</span> : <OrderStatusSelector orderId={order.id} initialStatus={order.status} />}
                                         </td>
                                         <td className="py-4 px-6 text-right font-bold text-slate-900 text-base">
                                             ¥{(order.total_amount || 0).toLocaleString()}

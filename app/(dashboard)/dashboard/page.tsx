@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
 import DashboardClient from './dashboard-client';
+import { isRecognizedOrder } from '@/utils/order-sales';
 
 export default async function DashboardPage() {
     const supabase = await createClient();
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
         .eq('company_id', companyId);
 
     // Supabase の結合結果は型定義上配列になる場合があるため、画面用に単一の顧客へ正規化する。
-    const orders = (allOrders || []).map((order) => ({
+    const orders = (allOrders || []).filter(isRecognizedOrder).map((order) => ({
         ...order,
         customers: Array.isArray(order.customers) ? order.customers[0] || null : order.customers,
     }));

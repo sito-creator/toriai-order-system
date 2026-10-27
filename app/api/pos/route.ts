@@ -3,6 +3,7 @@ import { createAdminClient } from '@/utils/supabase/admin';
 import { posTotals, PosLine } from '@/utils/pos';
 import { ensurePosCheckout, syncPosPayment } from '@/utils/pos-payment';
 import { expireCheckoutSession } from '@/utils/stripe';
+import { revalidatePath } from 'next/cache';
 
 async function context() {
     const db = await createClient();
@@ -65,6 +66,8 @@ export async function POST(request: Request) {
             try { return Response.json({sale:await ensurePosCheckout(data.id,profile.company_id)}); }
             catch (e) { return Response.json({error:(e as Error).message},{status:503}); }
         }
+        revalidatePath('/orders');
+        revalidatePath('/dashboard');
         return Response.json({ sale: data });
     } catch (e) { return Response.json({ error: (e as Error).message, retryable: false }, { status: 400 }); }
 }
@@ -85,6 +88,8 @@ export async function PATCH(request: Request) {
         }
         const { data, error } = await admin.rpc('pos_transition',{p_id:id,p_company:profile.company_id,p_target:'voided',p_reason:reason.trim(),p_user:user.id});
         if (error || !data) throw new Error('会計を取り消せませんでした。');
+        revalidatePath('/orders');
+        revalidatePath('/dashboard');
         return Response.json({ sale: data });
     } catch (e) { return Response.json({ error: (e as Error).message }, { status: 400 }); }
 }

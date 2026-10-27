@@ -39,6 +39,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     if (orderError || !order) {
         notFound();
     }
+    if (order.pos_sale_id) redirect(`/orders/${id}`);
 
     const activeProducts = products?.filter(p => p.is_active !== false) || [];
     
