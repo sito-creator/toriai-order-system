@@ -1,30 +1,8 @@
-import { createClient } from '@/utils/supabase/server';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import ProductForm from './product-form';
 
 export default function NewProductPage() {
-    async function addProduct(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const { error } = await supabase.from('products').insert([{
-            product_code: formData.get('product_code'),
-            product_name: formData.get('product_name'),
-            category: formData.get('category'),
-            unit: formData.get('unit'),
-            standard_price: Number(formData.get('standard_price')),
-            is_active: formData.get('is_active') === 'on'
-        }]);
-
-        if (!error) {
-            revalidatePath('/products');
-            redirect('/products');
-        } else {
-            console.error(error);
-        }
-    }
-
     return (
         <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
@@ -38,7 +16,7 @@ export default function NewProductPage() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                <form action={addProduct} className="p-6 space-y-6">
+                <ProductForm>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">商品コード</label>
@@ -104,7 +82,7 @@ export default function NewProductPage() {
                             <span>本番データベースに登録</span>
                         </button>
                     </div>
-                </form>
+                </ProductForm>
             </div>
         </div>
     );

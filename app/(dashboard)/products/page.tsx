@@ -3,10 +3,13 @@ import { createClient } from '@/utils/supabase/server';
 import { Package, Search, Plus, MoreHorizontal, Tag, Upload } from 'lucide-react';
 import CsvImportButton from '@/app/components/csv-import-button';
 import { importProductsCsv } from '@/app/actions/csv';
+import { getCurrentCompanyId } from '@/utils/auth';
 
 export default async function ProductsPage() {
     const supabase = await createClient();
-    const { data: products } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    const companyId = await getCurrentCompanyId();
+    const { data: products, error } = await supabase.from('products').select('*').eq('company_id', companyId).order('created_at', { ascending: false });
+    if (error) return <p role="alert" className="text-rose-700">商品一覧を取得できませんでした。再読み込みして、解消しない場合は管理者にお問い合わせください。</p>;
 
     return (
         <div className="space-y-6">
@@ -73,7 +76,7 @@ export default async function ProductsPage() {
                                         <td className="py-4 px-6 text-right font-bold text-slate-900 text-base">
                                             ¥{(product.standard_price || product.price || 0).toLocaleString()} <span className="text-slate-400 font-normal text-xs ml-1">/ {product.unit || '個'}</span>
                                         </td>
-                                        <td className="py-4 px-6 text-center">{product.tax_rate || 10}%</td>
+                                        <td className="py-4 px-6 text-center">{product.tax_rate ?? 10}%</td>
                                         <td className="py-4 px-6 text-center">
                                             {product.is_active ?
                                                 <span className="text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full text-xs font-bold">販売中</span> :
