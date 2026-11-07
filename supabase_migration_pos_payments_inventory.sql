@@ -62,4 +62,8 @@ BEGIN
  ELSE RAISE EXCEPTION '不正な状態遷移'; END IF;
  RETURN to_jsonb(s);
 END $$;
-REVOKE ALL ON FUNCTION public.pos_cre
+REVOKE ALL ON FUNCTION public.pos_create_sale(jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.pos_transition(uuid,uuid,text,text,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pos_create_sale(jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.pos_transition(uuid,uuid,text,text,uuid) TO service_role;
+COMMIT;
