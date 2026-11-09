@@ -1,44 +1,25 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Trash2, Package, Tag } from 'lucide-react';
+import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { getCurrentCompanyId } from '@/utils/auth';
+import { updateProduct } from '@/app/actions/products';
+import ProductForm from '../new/product-form';
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId();
 
     const { data: product, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', id)
+        .eq('company_id', companyId)
         .single();
 
     if (error || !product) {
         notFound();
-    }
-
-    async function updateProduct(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const { error } = await supabase
-            .from('products')
-            .update({
-                product_code: formData.get('product_code'),
-                product_name: formData.get('product_name'),
-                category: formData.get('category'),
-                unit: formData.get('unit'),
-                standard_price: Number(formData.get('standard_price')),
-                tax_rate: Number(formData.get('tax_rate')),
-                is_active: formData.get('is_active') === 'on',
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', id);
-
-        if (!error) {
-            redirect('/products');
-        } else {
-            console.error(error);
-        }
     }
 
     async function deleteProduct() {
@@ -67,7 +48,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <form action={updateProduct} className="p-6 space-y-6">
+                <ProductForm saveProductAction={updateProduct.bind(null, id)}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">商品コード</label>
@@ -83,7 +64,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                             <label className="text-sm font-bold text-slate-700">標準単価（税抜） <span className="text-rose-500">*</span></label>
                             <div className="relative">
                                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">¥</span>
-                                <input name="standard_price" required type="number" min="0" defaultValue={product.standard_price || 0} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 pl-8 pr-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-mono font-bold text-lg" />
+                                <input name="standard_price" required type="number" min="0" defaultValue={product.standard_price || product.price || 0} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 pl-8 pr-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-mono font-bold text-lg" />
                             </div>
                         </div>
 
@@ -111,7 +92,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">適用税率</label>
-                            <select name="tax_rate" defaultValue={product.tax_rate || 10} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
+                            <select name="tax_rate" defaultValue={product.tax_rate ?? 10} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
                                 <option value="10">標準税率 (10%)</option>
                                 <option value="8">軽減税率 (8%)</option>
                                 <option value="0">非課税 (0%)</option>
@@ -135,7 +116,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                             <span>変更を保存</span>
                         </button>
                     </div>
-                </form>
+                </ProductForm>
             </div>
         </div>
     );

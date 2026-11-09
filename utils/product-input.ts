@@ -23,6 +23,6 @@ export function productInput(form: FormData, companyId: string) {
 
 export function productSaveError(code?: string) {
     if (code === '23505') return '同じ商品コードが登録されています。商品一覧を確認してください。';
-    if (code === '42501') return '商品を登録する権限がありません。会社管理者に確認してください。';
+    if (code === '42501') return '商品を保存する権限がありません。会社管理者に確認してください。';
     return '商品の保存を確認できませんでした。入力内容と商品一覧を確認して、再試行してください。';
 }
