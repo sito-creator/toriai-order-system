@@ -54,7 +54,7 @@ export default async function EditSupplierProductPage({
                 supplier_product_code: formData.get('supplier_product_code') || null,
                 purchase_price: Number(formData.get('purchase_price')) || 0,
                 min_order_qty: Number(formData.get('min_order_qty')) || 1,
-                lead_time_days: Number(formData.get('lead_time_days')) || null,
+                lead_time_days: formData.get('lead_time_days') === '' || formData.get('lead_time_days') == null ? null : Number(formData.get('lead_time_days')),
             })
             .eq('id', id);
 
@@ -169,7 +169,7 @@ export default async function EditSupplierProductPage({
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">リードタイム（日数）</label>
                             <div className="relative">
-                                <input name="lead_time_days" type="number" min="0" defaultValue={sp.lead_time_days || ''} placeholder="例: 7" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 pr-10 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-mono font-bold" />
+                                <input name="lead_time_days" type="number" min="0" defaultValue={sp.lead_time_days ?? ''} placeholder="例: 7" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 pr-10 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-mono font-bold" />
                                 <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">日</span>
                             </div>
                         </div>

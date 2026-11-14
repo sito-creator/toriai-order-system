@@ -71,7 +71,7 @@ export default async function SupplierProductsPage() {
                                     <td className="py-4 px-6 font-mono text-xs text-slate-500">{sp.supplier_product_code || '-'}</td>
                                     <td className="py-4 px-6 text-right font-bold">¥{(sp.purchase_price || 0).toLocaleString()}</td>
                                     <td className="py-4 px-6">{sp.min_order_qty || '-'}</td>
-                                    <td className="py-4 px-6">{sp.lead_time_days ? `${sp.lead_time_days}日` : '-'}</td>
+                                    <td className="py-4 px-6">{sp.lead_time_days != null ? `${sp.lead_time_days}日` : '-'}</td>
                                     <td className="py-4 px-6 text-right">
                                         <Link href={`/supplier-products/${sp.id}/edit`} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
                                             <MoreHorizontal size={16} />
