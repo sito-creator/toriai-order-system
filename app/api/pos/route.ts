@@ -1,3 +1,4 @@
+import {productPrice} from '@/utils/product-price';
 import { createClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { posTotals, PosLine } from '@/utils/pos';
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
         const lines: PosLine[] = body.lines.map((x: PosLine) => {
             const p = products?.find(p => p.id === x.product_id);
             if (!p || p.is_active === false) throw new Error('販売できない商品が含まれています。');
-            return { product_id: p.id, name: p.product_name, price: Number(p.standard_price || p.price || 0), quantity: x.quantity, tax_rate: Number(p.tax_rate ?? 10) };
+            return { product_id: p.id, name: p.product_name, price: productPrice(p), quantity: x.quantity, tax_rate: Number(p.tax_rate ?? 10) };
         });
         const totals = posTotals(lines);
         if (body.expected_total !== totals.total) return Response.json({ error: '商品価格が更新されました。画面を再読み込みして会計金額をご確認ください。', retryable: false }, { status: 409 });

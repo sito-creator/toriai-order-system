@@ -1,4 +1,5 @@
 'use client';
+import {isInvoiceOverdue} from '@/utils/business-date';
 
 import Link from 'next/link';
 import { Banknote, FileText, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -25,9 +26,6 @@ function getStatusConfig(status: string) {
     }
 }
 
-function isOverdue(d: string | null) {
-    return d ? new Date(d) < new Date() : false;
-}
 
 export function UnpaidTable({
     invoices,
@@ -65,7 +63,7 @@ export function UnpaidTable({
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {invoices.length > 0 ? invoices.map(invoice => {
-                                const overdue = isOverdue(invoice.due_date);
+                                const overdue = isInvoiceOverdue(invoice.due_date);
                                 const sc = getStatusConfig(overdue ? '期日超過' : (invoice.status || ''));
                                 return (
                                     <tr key={invoice.id} className={`hover:bg-slate-50/80 transition-colors ${overdue ? 'bg-rose-50/30' : ''} ${selectedIds.has(invoice.id) ? 'bg-indigo-50/50' : ''}`}>

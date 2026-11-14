@@ -1,3 +1,4 @@
+import {productPrice} from '@/utils/product-price';
 import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -64,7 +65,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                             <label className="text-sm font-bold text-slate-700">標準単価（税抜） <span className="text-rose-500">*</span></label>
                             <div className="relative">
                                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">¥</span>
-                                <input name="standard_price" required type="number" min="0" defaultValue={product.standard_price || product.price || 0} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 pl-8 pr-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-mono font-bold text-lg" />
+                                <input name="standard_price" required type="number" min="0" defaultValue={productPrice(product)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 pl-8 pr-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-mono font-bold text-lg" />
                             </div>
                         </div>
 

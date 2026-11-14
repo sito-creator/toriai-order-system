@@ -1,3 +1,4 @@
+import {invoiceLineTax} from '@/utils/invoice-total';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -29,7 +30,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         .single();
 
     // 明細行取得
-    const { data: linesData } = await supabase
+    const { data: linesData, error: linesError } = await supabase
         .from('invoice_lines')
         .select('*')
         .eq('invoice_id', id);
@@ -129,19 +130,25 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     const issuerRegistrationNumber = companySettings?.registration_number || companyInfo?.registration_number || invoice.issuer_registration_number || null;
     const issuerRepresentative = companySettings?.representative_name || companyInfo?.representative_name || null;
     const issuerAddress = companySettings?.address || companyInfo?.address || null;
-    const taxBreakdown = [10, 8, 0].map((rate) => {
-        const rateLines = lines.filter((line: any) => Number(line.tax_rate ?? 10) === rate);
-        const subtotal = rateLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
-        const tax = rateLines.reduce((sum: number, line: any) => {
-            const savedTax = Number(line.tax_amount);
-            return sum + (Number.isFinite(savedTax) ? savedTax : Math.floor(Number(line.amount || 0) * rate / 100));
-        }, 0);
-        return { rate, subtotal, tax, total: subtotal + tax };
-    }).filter((row) => row.subtotal !== 0 || row.tax !== 0);
-    const calculatedSubtotal = taxBreakdown.reduce((sum, row) => sum + row.subtotal, 0);
-    const calculatedTax = taxBreakdown.reduce((sum, row) => sum + row.tax, 0);
-    const calculatedTotal = calculatedSubtotal + calculatedTax;
+    let calculationError='';
+    let taxBreakdown:{rate:number;subtotal:number;tax:number;total:number}[]=[];
+    try {
+        if(linesError||!lines.length)throw new Error('明細を確認できません。');
+        taxBreakdown=[10,8,0,-1].map(rate=>{
+            const rateLines=lines.filter((line:any)=>([0,8,10].includes(Number(line.tax_rate))&&line.tax_rate!=null?Number(line.tax_rate):-1)===rate);
+            const subtotal=rateLines.reduce((sum:number,line:any)=>sum+Number(line.amount),0);
+            const tax=rateLines.reduce((sum:number,line:any)=>sum+invoiceLineTax(line),0);
+            return {rate,subtotal,tax,total:subtotal+tax};
+        }).filter(row=>row.subtotal!==0||row.tax!==0);
+        // Check all rows, including unknown tax rates that cannot be grouped.
+        for(const line of lines)invoiceLineTax(line);
+    }catch {calculationError='税率・税額が未確認の明細があります。以下は保存済みの請求合計です。明細を確認してください。';taxBreakdown=[];}
+    const calculatedSubtotal=taxBreakdown.reduce((sum,row)=>sum+row.subtotal,0);
+    const calculatedTax=taxBreakdown.reduce((sum,row)=>sum+row.tax,0);
+    const calculatedTotal=calculationError?Number(invoice.total_amount||0):calculatedSubtotal+calculatedTax;
+    const amountWarning=!calculationError&&calculatedTotal!==Number(invoice.total_amount)?'保存済み合計と明細の計算結果が一致しません。発行前に請求内容をご確認ください。':'';
     const paymentUrlForDocument = paymentLinkData
+        && !calculationError && !amountWarning && Number(paymentLinkData.amount)===calculatedTotal && paymentLinkData.currency==='jpy'
         && (paymentLinkData.status === 'active' || paymentLinkData.status === 'paid')
         ? paymentLinkData.payment_url
         : null;
@@ -166,12 +173,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
 
             <PaymentLinkPanel
+                expectedAmount={calculatedTotal}
+                amountConfirmed={!calculationError&&!amountWarning}
                 invoiceId={id}
                 initialLink={(paymentLinkData as InvoicePaymentLink | null) || null}
                 stripeConfigured={Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_CONNECT_CLIENT_ID)}
                 stripeConnected={stripeIntegration?.status === 'connected'}
             />
 
+            {(calculationError||amountWarning)&&<p role="alert" className="rounded-lg bg-amber-50 p-4 text-amber-900">{calculationError||amountWarning}</p>}
             {/* Printable Invoice */}
             <div id="invoice-print-area" className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8 print:shadow-none print:border-none print:p-0 print:rounded-none">
                 {/* Title */}
@@ -252,7 +262,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                                 </td>
                                 <td className="py-3 px-2 text-right">{line.quantity || 1} {line.unit || '個'}</td>
                                 <td className="py-3 px-2 text-right">¥{(line.unit_price || 0).toLocaleString()}</td>
-                                <td className="py-3 px-2 text-right">{Number(line.tax_rate ?? 10) === 0 ? '非課税' : `${Number(line.tax_rate ?? 10)}%`}</td>
+                                <td className="py-3 px-2 text-right">{line.tax_rate==null?'未確認':Number(line.tax_rate)===0?'非課税':`${Number(line.tax_rate)}%`}</td>
                                 <td className="py-3 px-2 text-right font-bold">¥{(line.amount || 0).toLocaleString()}</td>
                             </tr>
                         )) : (
@@ -283,7 +293,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                                 <tbody className="divide-y divide-slate-200">
                                     {taxBreakdown.length > 0 ? taxBreakdown.map((row) => (
                                         <tr key={row.rate}>
-                                            <td className="py-2 px-3">{row.rate === 0 ? '非課税' : `${row.rate}%${row.rate === 8 ? '（軽減税率）' : ''}`}</td>
+                                            <td className="py-2 px-3">{row.rate === -1 ? '税率未確認' : row.rate === 0 ? '非課税' : `${row.rate}%${row.rate === 8 ? '（軽減税率）' : ''}`}</td>
                                             <td className="py-2 px-3 text-right">¥{row.subtotal.toLocaleString()}</td>
                                             <td className="py-2 px-3 text-right">¥{row.tax.toLocaleString()}</td>
                                             <td className="py-2 px-3 text-right">¥{row.total.toLocaleString()}</td>
@@ -302,11 +312,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                             <tbody>
                                 <tr className="border-b border-slate-200">
                                     <td className="py-2 text-slate-600 font-bold">小計</td>
-                                    <td className="py-2 text-right font-mono">¥{calculatedSubtotal.toLocaleString()}</td>
+                                    <td className="py-2 text-right font-mono">{calculationError?'未確認':`¥${calculatedSubtotal.toLocaleString()}`}</td>
                                 </tr>
                                 <tr className="border-b border-slate-200">
                                     <td className="py-2 text-slate-600 font-bold">消費税額合計</td>
-                                    <td className="py-2 text-right font-mono">¥{calculatedTax.toLocaleString()}</td>
+                                    <td className="py-2 text-right font-mono">{calculationError?'未確認':`¥${calculatedTax.toLocaleString()}`}</td>
                                 </tr>
                                 <tr className="border-b-2 border-slate-900">
                                     <td className="py-3 font-bold text-slate-700">合計</td>

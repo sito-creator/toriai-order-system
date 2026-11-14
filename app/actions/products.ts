@@ -22,7 +22,7 @@ async function saveProduct(form: FormData, id?: string): Promise<{ id?: string; 
     try {
         const supabase = await createClient();
         const { company_id, ...fields } = payload;
-        // Keep the legacy price in sync: POS falls back to price when standard_price is zero.
+        // Keep the legacy price in sync for older consumers.
         const query = id
             ? supabase.from('products').update({ ...fields, price: fields.standard_price }).eq('id', id).eq('company_id', company_id)
             : supabase.from('products').insert(payload);

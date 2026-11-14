@@ -11,7 +11,7 @@ type PurchaseRow = {
     purchase_number: string | null;
     status: string;
     total_amount: number | null;
-    desired_delivery_date: string | null;
+    expected_delivery_date: string | null;
     supplier_name: string | null;
 };
 
@@ -77,7 +77,7 @@ export default function PurchasesTable({
                                             ¥{(purchase.total_amount || 0).toLocaleString()}
                                         </td>
                                         <td className="py-4 px-6 text-xs text-slate-600 font-medium">
-                                            {purchase.desired_delivery_date || '設定なし'}
+                                            {purchase.expected_delivery_date || '設定なし'}
                                         </td>
                                         <td className="py-4 px-6 text-center">
                                             <Link href={`/purchases/${purchase.id}`} className="inline-flex items-center justify-center p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all hover:scale-105 active:scale-95">

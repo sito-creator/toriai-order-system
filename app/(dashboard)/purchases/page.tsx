@@ -36,7 +36,7 @@ export default async function PurchasesPage({
         purchase_number: p.purchase_number,
         status: p.status,
         total_amount: p.total_amount,
-        desired_delivery_date: p.desired_delivery_date,
+        expected_delivery_date: p.expected_delivery_date,
         supplier_name: p.suppliers?.company_name || null,
     }));
 

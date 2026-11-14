@@ -15,11 +15,15 @@ export type InvoicePaymentLink = {
 
 export default function PaymentLinkPanel({
     invoiceId,
+    expectedAmount,
+    amountConfirmed=true,
     initialLink,
     stripeConfigured,
     stripeConnected,
 }: {
     invoiceId: string;
+    expectedAmount?:number;
+    amountConfirmed?:boolean;
     initialLink: InvoicePaymentLink | null;
     stripeConfigured: boolean;
     stripeConnected: boolean;
@@ -30,6 +34,7 @@ export default function PaymentLinkPanel({
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState('');
 
+    const linkMatchesAmount=!!paymentLink&&amountConfirmed&&(expectedAmount===undefined||Number(paymentLink.amount)===expectedAmount)&&paymentLink.currency==='jpy';
     const issueLink = async () => {
         setLoading(true);
         setError('');
@@ -47,7 +52,7 @@ export default function PaymentLinkPanel({
     };
 
     const copyLink = async () => {
-        if (!paymentLink) return;
+        if (!paymentLink||!linkMatchesAmount) return;
         await navigator.clipboard.writeText(paymentLink.payment_url);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2000);
@@ -86,7 +91,7 @@ export default function PaymentLinkPanel({
                     <button
                         type="button"
                         onClick={issueLink}
-                        disabled={loading || !stripeConfigured || !stripeConnected}
+                        disabled={loading || !stripeConfigured || !stripeConnected || !amountConfirmed}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {loading ? <Loader2 size={17} className="animate-spin" /> : <CreditCard size={17} />}
@@ -107,6 +112,7 @@ export default function PaymentLinkPanel({
                 </p>
             )}
 
+            {paymentLink&&!linkMatchesAmount&&<p role="alert" className="mt-3 text-sm text-rose-700">決済URLの金額が一致しないか、請求金額が未確認です。内容を確認し、既存URLは無効化してから発行し直してください。</p>}
             {paymentLink && (
                 <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="mb-2 flex items-center justify-between gap-4">
@@ -116,12 +122,12 @@ export default function PaymentLinkPanel({
                         </span>
                     </div>
                     <div className="flex flex-col gap-2 md:flex-row">
-                        <input readOnly value={paymentLink.payment_url} className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" />
-                        <button type="button" onClick={copyLink} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
+                        <input readOnly value={linkMatchesAmount?paymentLink.payment_url:''} className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" />
+                        <button type="button" onClick={copyLink} disabled={!linkMatchesAmount} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
                             {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
                             {copied ? 'コピー済み' : 'コピー'}
                         </button>
-                        {isActive && (
+                        {isActive && linkMatchesAmount && (
                             <a href={paymentLink.payment_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
                                 <ExternalLink size={16} /> 開く
                             </a>

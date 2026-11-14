@@ -109,7 +109,7 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
                     </div>
                     <div className="space-y-2 text-sm">
                         <p><span className="text-slate-400 font-medium mr-2">発注日</span><span className="font-bold text-slate-800">{purchase.purchase_date || '未定'}</span></p>
-                        <p><span className="text-slate-400 font-medium mr-2">希望納期</span><span className="font-bold text-slate-800">{purchase.desired_delivery_date || '未定'}</span></p>
+                        <p><span className="text-slate-400 font-medium mr-2">希望納期</span><span className="font-bold text-slate-800">{purchase.expected_delivery_date || '未定'}</span></p>
                     </div>
                 </div>
 

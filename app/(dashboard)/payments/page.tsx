@@ -1,3 +1,4 @@
+import {isInvoiceOverdue} from '@/utils/business-date';
 import { isPostedInvoice } from '@/utils/accounting-status';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
@@ -23,7 +24,7 @@ export default async function PaymentsPage() {
 
     const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
     const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
-    const overdueInvoices = unpaidInvoices.filter(inv => inv.due_date && new Date(inv.due_date) < new Date());
+    const overdueInvoices = unpaidInvoices.filter(inv => isInvoiceOverdue(inv.due_date));
     const totalOverdue = overdueInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
 
     // Server Actions

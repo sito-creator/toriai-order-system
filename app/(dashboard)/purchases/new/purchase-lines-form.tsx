@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useContext, useEffect } from 'react';
+import {PurchaseSupplierContext} from '@/app/components/purchase-supplier';
 import { Plus, Trash2, Package } from 'lucide-react';
 
 type SupplierProduct = {
@@ -33,7 +34,15 @@ export default function PurchaseLinesForm({
     selectedSupplierId?: string;
 }) {
     const [lines, setLines] = useState<Line[]>([]);
-    const [supplierId, setSupplierId] = useState(selectedSupplierId || '');
+    const shared=useContext(PurchaseSupplierContext);
+    const supplierId=selectedSupplierId ?? shared.supplierId;
+    useEffect(()=>{
+        setLines(previous=>previous.map(line=>{
+            const product=supplierProducts.find(p=>p.id===line.supplier_product_id);
+            if(!supplierId||!product||product.supplier_id===supplierId)return line;
+            return {...line,supplier_product_id:'',product_name:'',unit_price:0,amount:0,tax_amount:0};
+        }));
+    },[supplierId,supplierProducts]);
 
     // 選択中の仕入先の商品だけフィルタリング
     const filteredProducts = supplierId 
@@ -89,11 +98,6 @@ export default function PurchaseLinesForm({
         });
     };
 
-    // 仕入先が変更された時にフォームの仕入先IDを更新
-    const handleSupplierChange = (newSupplierId: string) => {
-        setSupplierId(newSupplierId);
-    };
-
     const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
     const totalTax = lines.reduce((sum, l) => sum + l.tax_amount, 0);
     const grandTotal = subtotal + totalTax;
@@ -111,6 +115,7 @@ export default function PurchaseLinesForm({
                 </button>
             </div>
 
+            {supplierId&&<p className="text-sm text-amber-800">選択中の仕入先の商品を表示しています。仕入先を変更した場合、対象外の商品は選択し直してください。</p>}
             {/* hidden input: JSON形式でフォーム送信 */}
             <input type="hidden" name="lines" value={JSON.stringify(lines)} readOnly />
             {/* 仕入先IDの変更を親フォームで検知するためのhidden listener */}

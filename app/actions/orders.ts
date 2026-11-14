@@ -1,20 +1,6 @@
 'use server';
-
-import { createClient } from '@/utils/supabase/server';
-import { revalidatePath } from 'next/cache';
-
-export async function updateOrderStatus(orderId: string, newStatus: string) {
-    const supabase = await createClient();
-    
-    const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
-        
-    if (error) {
-        throw new Error(error.message);
-    }
-    
-    // Refresh the page
-    revalidatePath('/orders');
+import {changeDocumentStatus} from '@/utils/document-status';
+export async function updateOrderStatus(id:string,status:string) {
+    const result=await changeDocumentStatus('order',id,status);
+    if(result.error)throw new Error(result.error);
 }

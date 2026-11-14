@@ -14,6 +14,7 @@ interface StatusChangerProps {
 export default function StatusChanger({ id, currentStatus, statuses, type }: StatusChangerProps) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
+    const [errorMessage,setErrorMessage]=useState('');
     const [status, setStatus] = useState(currentStatus);
     const [isPending, startTransition] = useTransition();
     const [showSuccess, setShowSuccess] = useState(false);
@@ -37,6 +38,7 @@ export default function StatusChanger({ id, currentStatus, statuses, type }: Sta
         }
 
         setIsOpen(false);
+        setErrorMessage('');
 
         startTransition(async () => {
             try {
@@ -46,6 +48,10 @@ export default function StatusChanger({ id, currentStatus, statuses, type }: Sta
                     body: JSON.stringify({ status: newStatus }),
                 });
 
+                if (!res.ok) {
+                    const data=await res.json().catch(()=>null);
+                    setErrorMessage(data?.error||'状態を更新できませんでした。再度お試しください。');return;
+                }
                 if (res.ok) {
                     setStatus(newStatus);
                     setShowSuccess(true);
@@ -54,13 +60,14 @@ export default function StatusChanger({ id, currentStatus, statuses, type }: Sta
                     router.refresh();
                 }
             } catch (error) {
-                console.error('Failed to update status:', error);
+                setErrorMessage('通信に失敗しました。状態は更新できませんでした。');
             }
         });
     };
 
     return (
         <div className="relative">
+            {errorMessage&&<p role="alert" className="mb-2 text-sm text-rose-700">{errorMessage}</p>}
             <button
                 ref={buttonRef}
                 onClick={() => setIsOpen(!isOpen)}

@@ -1,3 +1,4 @@
+import {PurchaseSupplierProvider,PurchaseSupplierSelect} from '@/app/components/purchase-supplier';
 import SaveForm from '@/app/components/save-form';
 import { createPurchase } from '@/app/actions/save-documents';
 import { createClient } from '@/utils/supabase/server';
@@ -56,7 +57,7 @@ export default async function NewPurchasePage() {
                 </div>
             </div>
 
-            <SaveForm action={createPurchase} successPath="/purchases">
+            <PurchaseSupplierProvider><SaveForm action={createPurchase} successPath="/purchases">
                 {/* 基本情報 */}
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5 mb-6">
                     <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider pb-3 border-b border-slate-100">基本情報</h2>
@@ -71,12 +72,7 @@ export default async function NewPurchasePage() {
                                 <span>仕入先</span>
                                 <Link href="/suppliers/new" className="text-xs text-indigo-600 hover:text-indigo-800 font-normal">マスタにない場合はこちらから追加</Link>
                             </label>
-                            <select name="supplier_id" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
-                                <option value="">選択してください</option>
-                                {(suppliers || []).map((s: any) => (
-                                    <option key={s.id} value={s.id}>{s.company_name}</option>
-                                ))}
-                            </select>
+                            <PurchaseSupplierSelect suppliers={suppliers||[]} />
                             {(!suppliers || suppliers.length === 0) && (
                                 <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
                                     ⚠ 仕入先が未登録です。<Link href="/suppliers/new" className="underline font-bold">こちらから登録</Link>してください。
@@ -120,7 +116,7 @@ export default async function NewPurchasePage() {
                         <span>発注を保存</span>
                     </button>
                 </div>
-            </SaveForm>
+            </SaveForm></PurchaseSupplierProvider>
         </div>
     );
 }

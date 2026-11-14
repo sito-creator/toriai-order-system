@@ -1,3 +1,4 @@
+import {updateOrderStatus as saveOrderStatus} from '@/app/actions/orders';
 import SaveForm from '@/app/components/save-form';
 import { createQuoteForOrder } from '@/app/actions/save-documents';
 import { documentNumber } from '@/utils/document-number';
@@ -63,12 +64,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
     async function updateOrderStatus(formData: FormData) {
         'use server';
-        const newStatus = formData.get('status') as string;
-        if (!newStatus) return;
-        const supabase = await createClient();
-        await supabase.from('orders').update({ status: newStatus }).eq('id', id);
-        revalidatePath(`/orders/${id}`);
-        revalidatePath('/orders');
+        await saveOrderStatus(id,String(formData.get('status')||''));
     }
 
     return (

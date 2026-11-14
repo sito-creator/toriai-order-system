@@ -1,3 +1,4 @@
+import {productPrice} from '@/utils/product-price';
 import MasterSearch, { MasterSearchRow } from '@/app/components/master-search';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
@@ -69,7 +70,7 @@ export default async function ProductsPage() {
                                             </span>
                                         </td>
                                         <td className="py-4 px-6 text-right font-bold text-slate-900 text-base">
-                                            ¥{(product.standard_price || product.price || 0).toLocaleString()} <span className="text-slate-400 font-normal text-xs ml-1">/ {product.unit || '個'}</span>
+                                            ¥{productPrice(product).toLocaleString()} <span className="text-slate-400 font-normal text-xs ml-1">/ {product.unit || '個'}</span>
                                         </td>
                                         <td className="py-4 px-6 text-center">{product.tax_rate ?? 10}%</td>
                                         <td className="py-4 px-6 text-center">

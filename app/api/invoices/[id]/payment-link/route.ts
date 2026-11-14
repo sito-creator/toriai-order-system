@@ -25,7 +25,7 @@ export async function POST(
 
         const { data: invoice, error: invoiceError } = await supabase
             .from('invoices')
-            .select('id, company_id, invoice_number, status, customers(company_name, email)')
+            .select('id, company_id, invoice_number, status, total_amount, customers(company_name, email)')
             .eq('id', id)
             .eq('company_id', profile.company_id)
             .single();
@@ -56,7 +56,6 @@ export async function POST(
             .limit(1)
             .maybeSingle();
         if (existingError) return NextResponse.json({ error: TABLE_NOT_READY }, { status: 503 });
-        if (existing) return NextResponse.json({ paymentLink: existing });
 
         const { data: lines, error: linesError } = await supabase
             .from('invoice_lines')
@@ -64,9 +63,16 @@ export async function POST(
             .eq('invoice_id', id);
         if (linesError) throw new Error(linesError.message);
 
-        const { total } = calculateInvoiceTotal(lines || []);
+        let total:number;
+        try{total=calculateInvoiceTotal(lines||[]).total;}catch{return NextResponse.json({error:'税率・税額が未確認です。請求内容をご確認ください。'},{status:409});}
+        if(total!==Number(invoice.total_amount))return NextResponse.json({error:'保存済み合計と明細が一致しません。請求内容をご確認ください。'},{status:409});
         if (!Number.isInteger(total) || total <= 0) {
             return NextResponse.json({ error: '請求金額が正しくありません。' }, { status: 400 });
+        }
+
+        if(existing){
+            if(Number(existing.amount)!==total||existing.currency!=='jpy')return NextResponse.json({error:'既存の決済URLと請求金額が一致しません。既存URLを無効化してから発行し直してください。'},{status:409});
+            return NextResponse.json({paymentLink:existing});
         }
 
         const customer = Array.isArray(invoice.customers) ? invoice.customers[0] : invoice.customers;

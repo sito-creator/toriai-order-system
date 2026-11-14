@@ -1,4 +1,5 @@
 'use client';
+import {productPrice} from '@/utils/product-price';
 
 import { useState, useRef } from 'react';
 import { Plus, Trash2, Package } from 'lucide-react';
@@ -57,7 +58,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "å
                 if (product) {
                     line.product_id = product.id;
                     line.product_name = product.product_name;
-                    line.unit_price = Number(product.price || product.standard_price) || 0;
+                    line.unit_price = productPrice(product);
                     line.tax_rate = Number(product.tax_rate ?? 10);
                     line.amount = line.quantity * line.unit_price;
                     line.tax_amount = line.tax_rate < 0 ? 0 : Math.floor(line.amount * line.tax_rate / 100);

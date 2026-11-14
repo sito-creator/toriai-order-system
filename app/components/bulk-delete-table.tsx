@@ -19,6 +19,12 @@ export default function BulkDeleteTable({ ids, deleteAction, children, entityNam
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isPending, startTransition] = useTransition();
     const [showConfirm, setShowConfirm] = useState(false);
+    const idsKey=JSON.stringify([...ids].sort());
+    const [previousIds,setPreviousIds]=useState(idsKey);
+    if(previousIds!==idsKey){
+        setPreviousIds(idsKey);setSelectedIds(new Set());setShowConfirm(false);
+    }
+    const visibleSelectedIds=previousIds===idsKey?new Set([...selectedIds].filter(id=>ids.includes(id))):new Set<string>();
 
     const toggleId = (id: string) => {
         setSelectedIds(prev => {
@@ -32,7 +38,7 @@ export default function BulkDeleteTable({ ids, deleteAction, children, entityNam
         });
     };
 
-    const isAllSelected = ids.length > 0 && ids.every(id => selectedIds.has(id));
+    const isAllSelected = ids.length > 0 && ids.every(id => visibleSelectedIds.has(id));
 
     const toggleAll = () => {
         if (isAllSelected) {
@@ -44,9 +50,10 @@ export default function BulkDeleteTable({ ids, deleteAction, children, entityNam
 
     const handleDelete = () => {
         setShowConfirm(false);
+        if(!visibleSelectedIds.size)return;
         startTransition(async () => {
             try {
-                await deleteAction(Array.from(selectedIds));
+                await deleteAction(Array.from(visibleSelectedIds));
                 setSelectedIds(new Set());
             } catch (err: any) {
                 alert(err.message || '削除に失敗しました');
@@ -57,14 +64,14 @@ export default function BulkDeleteTable({ ids, deleteAction, children, entityNam
     return (
         <div className="relative">
             {/* Selection toolbar */}
-            {selectedIds.size > 0 && (
+            {visibleSelectedIds.size > 0 && (
                 <div className="sticky top-0 z-20 bg-gradient-to-r from-rose-50 to-rose-100/80 backdrop-blur border-b border-rose-200 px-6 py-3 flex items-center justify-between gap-4 animate-in slide-in-from-top-2">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-8 h-8 bg-rose-500 text-white rounded-full text-sm font-bold">
-                            {selectedIds.size}
+                            {visibleSelectedIds.size}
                         </div>
                         <span className="text-sm font-bold text-rose-800">
-                            {selectedIds.size}件の{entityName}を選択中
+                            {visibleSelectedIds.size}件の{entityName}を選択中
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -90,7 +97,7 @@ export default function BulkDeleteTable({ ids, deleteAction, children, entityNam
                 </div>
             )}
 
-            {children({ selectedIds, toggleId, isAllSelected, toggleAll })}
+            {children({ selectedIds:visibleSelectedIds, toggleId, isAllSelected, toggleAll })}
 
             {/* Confirmation Modal */}
             {showConfirm && (
@@ -102,7 +109,7 @@ export default function BulkDeleteTable({ ids, deleteAction, children, entityNam
                             </div>
                             <h3 className="text-lg font-bold text-slate-900 mb-2">削除の確認</h3>
                             <p className="text-sm text-slate-600 mb-1">
-                                選択した <span className="font-bold text-rose-600">{selectedIds.size}件</span> の{entityName}を削除します。
+                                選択した <span className="font-bold text-rose-600">{visibleSelectedIds.size}件</span> の{entityName}を削除します。
                             </p>
                             <p className="text-xs text-slate-500">
                                 この操作は取り消せません。関連する明細データも同時に削除されます。
