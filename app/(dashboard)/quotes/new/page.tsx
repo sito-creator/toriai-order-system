@@ -1,8 +1,7 @@
-import { documentNumber } from '@/utils/document-number';
+import SaveForm from '@/app/components/save-form';
+import { createQuote } from '@/app/actions/save-documents';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { FileText, Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import OrderLinesForm from '../../orders/new/order-lines-form';
@@ -14,55 +13,6 @@ export default async function NewQuotePage() {
     const { data: products } = await supabase.from('products').select('*').eq('company_id', companyId).order('product_name');
     const activeProducts = products?.filter(p => p.is_active !== false) || [];
 
-    async function createQuote(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const companyId = await getCurrentCompanyId();
-        const quote_number = documentNumber('QUO');
-        const linesJson = formData.get('lines') as string;
-        const linesData = linesJson ? JSON.parse(linesJson) : [];
-        
-        let subtotal = 0;
-        let tax_amount = 0;
-        
-        if (linesData && linesData.length > 0) {
-            subtotal = linesData.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
-            tax_amount = linesData.reduce((sum: number, l: any) => sum + (Number(l.tax_amount) || 0), 0);
-        } else {
-            // 互換性のため残す
-            subtotal = Number(formData.get('total_amount') || 0);
-            tax_amount = Math.floor(subtotal * 0.1);
-        }
-
-        const { data: newQuote, error } = await supabase.from('quotes').insert({
-            company_id: companyId,
-            quote_number,
-            customer_id: formData.get('customer_id'),
-            subject: formData.get('subject'),
-            total_amount: subtotal + tax_amount,
-            status: '下書き',
-            valid_until: formData.get('valid_until')
-        }).select().single();
-
-        if (!error && newQuote && linesData && linesData.length > 0) {
-            const quoteLines = linesData.map((line: any, i: number) => ({
-                company_id: companyId,
-                quote_id: newQuote.id,
-                line_no: i + 1,
-                item_name: line.product_name || `商品ID: ${line.product_id}`,
-                quantity: line.quantity,
-                unit_price: line.unit_price,
-                amount: line.amount
-            }));
-            await supabase.from('quote_lines').insert(quoteLines);
-        }
-
-        if (!error) {
-            revalidatePath('/quotes');
-            redirect('/quotes');
-        }
-    }
-
     return (
         <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
@@ -72,7 +22,7 @@ export default async function NewQuotePage() {
                 <h1 className="text-2xl font-bold text-slate-900">新規見積書作成</h1>
             </div>
 
-            <form action={createQuote} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 flex flex-col">
+            <SaveForm action={createQuote} successPath="/quotes" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 flex flex-col">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700">顧客</label>
@@ -103,7 +53,7 @@ export default async function NewQuotePage() {
                         保存して一覧へ
                     </button>
                 </div>
-            </form>
+            </SaveForm>
         </div>
     );
 }

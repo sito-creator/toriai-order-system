@@ -1,3 +1,4 @@
+import { isRecognizedPurchase } from '@/utils/purchase-status';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
@@ -26,7 +27,7 @@ export default async function DashboardPage() {
     // 全発注データ
     const { data: allPurchases } = await supabase
         .from('purchases')
-        .select('id, created_at, total_amount')
+        .select('id, created_at, total_amount, status')
         .eq('company_id', companyId);
 
     // 全請求書データ
@@ -56,7 +57,7 @@ export default async function DashboardPage() {
     return (
         <DashboardClient
             orders={orders}
-            purchases={allPurchases || []}
+            purchases={(allPurchases || []).filter(isRecognizedPurchase)}
             invoices={allInvoices || []}
             customerCount={customerCount || 0}
             productCount={productCount || 0}

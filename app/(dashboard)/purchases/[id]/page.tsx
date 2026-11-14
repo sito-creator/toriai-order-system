@@ -1,3 +1,5 @@
+import { updatePurchaseStatus as savePurchaseStatus } from '@/app/actions/purchases';
+import { PURCHASE_STATUSES } from '@/utils/purchase-status';
 import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -19,7 +21,7 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
 
     const { data: purchaseLines } = await supabase
         .from('purchase_lines')
-        .select('*, products (product_name)')
+        .select('*').order('line_no')
         .eq('purchase_id', id);
 
     if (purchase && purchaseLines) {
@@ -48,10 +50,7 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
         'use server';
         const newStatus = formData.get('status') as string;
         if (!newStatus) return;
-        const supabase = await createClient();
-        await supabase.from('purchases').update({ status: newStatus }).eq('id', id);
-        revalidatePath(`/purchases/${id}`);
-        revalidatePath('/purchases');
+        await savePurchaseStatus(id, newStatus);
     }
 
     return (
@@ -74,12 +73,8 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
                                     defaultValue={purchase.status}
                                     className="appearance-none bg-transparent pl-1.5 pr-8 py-1.5 text-xs font-bold outline-none cursor-pointer"
                                 >
-                                    <option value="下書き">下書き</option>
-                                    <option value="発注済">発注済</option>
-                                    <option value="入荷待ち">入荷待ち</option>
-                                    <option value="一部入荷">一部入荷</option>
-                                    <option value="完了">完了</option>
-                                    <option value="キャンセル">キャンセル</option>
+                                    {!PURCHASE_STATUSES.includes(purchase.status) && <option value={purchase.status}>{purchase.status}</option>}
+                                    {PURCHASE_STATUSES.map(status=><option key={status} value={status}>{status}</option>)}
                                 </select>
                                 <div className="absolute right-2.5 pointer-events-none opacity-50 text-[10px]">
                                     ▼
@@ -152,7 +147,7 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
                                     <tr key={line.id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="py-4 px-6 text-slate-400 font-mono">{line.line_no || i + 1}</td>
                                         <td className="py-4 px-6 font-semibold text-slate-900">
-                                            {line.products?.product_name || '商品情報なし'}
+                                            {line.product_name || '商品情報なし'}
                                         </td>
                                         <td className="py-4 px-6 text-right font-medium">{line.quantity || 0} {line.unit || ''}</td>
                                         <td className="py-4 px-6 text-right">¥{(line.unit_price || 0).toLocaleString()}</td>

@@ -1,3 +1,4 @@
+import { PURCHASE_STATUSES } from '@/utils/purchase-status';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { Plus } from 'lucide-react';
@@ -7,14 +8,7 @@ import PurchasesTable from '@/app/components/purchases-table';
 
 export const dynamic = 'force-dynamic';
 
-const PURCHASE_STATUSES = [
-    { label: '下書き', color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    { label: '承認待ち', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-    { label: '発注済', color: 'bg-sky-100 text-sky-700 border-sky-200' },
-    { label: '入荷済', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-    { label: '検収済', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-    { label: 'キャンセル', color: 'bg-rose-50 text-rose-600 border-rose-200' },
-];
+
 
 export default async function PurchasesPage({
     searchParams,
@@ -64,7 +58,7 @@ export default async function PurchasesPage({
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                 {/* Status Filter */}
                 <div className="p-4 border-b border-slate-100">
-                    <StatusFilter statuses={PURCHASE_STATUSES} />
+                    <StatusFilter statuses={PURCHASE_STATUSES.map(label=>({label,color:label==='キャンセル'?'bg-rose-50 text-rose-700':'bg-slate-100 text-slate-700'}))} />
                 </div>
 
                 <PurchasesTable purchases={serializedPurchases} statusFilter={query.status || ''} />

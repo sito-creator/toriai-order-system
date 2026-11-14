@@ -1,30 +1,9 @@
-import { createClient } from '@/utils/supabase/server';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import SaveForm from '@/app/components/save-form';
+import { createSupplier } from '@/app/actions/suppliers';
 import { Save, ArrowLeft, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function NewSupplierPage() {
-    async function addSupplier(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const { error } = await supabase.from('suppliers').insert([{
-            company_name: formData.get('company_name'),
-            department: formData.get('department'),
-            contact_name: formData.get('contact_name'),
-            email: formData.get('email'),
-            phone: formData.get('phone'),
-            payment_terms: formData.get('payment_terms')
-        }]);
-
-        if (!error) {
-            revalidatePath('/suppliers');
-            redirect('/suppliers');
-        } else {
-            console.error(error);
-        }
-    }
-
     return (
         <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
@@ -41,7 +20,7 @@ export default function NewSupplierPage() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <form action={addSupplier} className="p-6 space-y-6">
+                <SaveForm action={createSupplier} successPath="/suppliers" className="p-6 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2 md:col-span-2">
                             <label className="text-sm font-bold text-slate-700">会社名・屋号 <span className="text-rose-500">*</span></label>
@@ -89,7 +68,7 @@ export default function NewSupplierPage() {
                             <span>仕入先を登録</span>
                         </button>
                     </div>
-                </form>
+                </SaveForm>
             </div>
         </div>
     );

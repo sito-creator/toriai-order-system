@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {inheritedLines} from '../utils/document-lines.ts';
+import {buildJournalCsv} from '../utils/journal-csv.ts';
+import {PURCHASE_STATUSES,isRecognizedPurchase} from '../utils/purchase-status.ts';
+const products=[{id:'inactive',product_name:'停止品',unit:'個',is_active:false},{id:'active',product_name:'通常品',unit:'個',is_active:true}];
+const line={product_id:'inactive',item_name:'停止品',quantity:3,unit_price:1200,amount:3600,tax_rate:0,tax_amount:0};
+let r=inheritedLines([line],products,'order',3600,'2026-11-14');assert.equal(r.lines[0].tax_rate,0);assert.equal(r.lines[0].tax_amount,0);assert.equal(r.lines[0].product_name,'停止品');assert.equal(r.lines[0].product_id,'inactive');
+r=inheritedLines([{...line,tax_rate:8,tax_amount:288}],products,'quote',3888,'2026-11-14');assert.equal(r.lines[0].tax_rate,8);assert.equal(r.lines[0].tax_amount,288);
+r=inheritedLines([{item_name:'停止品',quantity:3,unit_price:100,amount:300}],products,'quote',324,'2026-11-14');assert.equal(r.lines[0].tax_rate,8);assert.equal(r.legacyInferred,true);
+r=inheritedLines([{item_name:'a',quantity:1,unit_price:100,amount:100},{item_name:'b',quantity:1,unit_price:100,amount:100}],products,'quote',216,'2026-11-14');assert.equal(r.needsTaxReview,true);assert.equal(r.lines[0].tax_rate,-1);
+r=inheritedLines([{...line,product_id:null}], [...products,{id:'duplicate',product_name:'停止品'}],'order',3600,'2026-11-14');assert.equal(r.lines[0].product_id,'');assert.equal(r.lines[0].product_name,'停止品');
+for(const status of ['キャンセル','取消済','voided'])assert.equal(isRecognizedPurchase({status}),false);
+for(const status of ['下書き','承認待ち','発注済','入荷待ち','一部入荷','入荷済','検収済','完了']){assert.equal(isRecognizedPurchase({status}),true);assert.ok(PURCHASE_STATUSES.includes(status));}
+const entries=[{id:'qa',date:'2026-11-14',debit_account:'売掛金',credit_account:'売上高',amount:100,description:'日本語,"引用"\n改行',source_type:'請求書',source_number:'QA'}];
+const cols=[{header:'摘要,メモ',field:'description',fixedValue:''},{header:'金額',field:'amount',fixedValue:''}];
+const sjis=buildJournalCsv(entries,{columns:cols,encoding:'shift_jis',delimiter:','});assert.notEqual(Buffer.from(sjis.bytes.subarray(0,3)).toString('hex'),'efbbbf');const decoded=new TextDecoder('shift_jis').decode(sjis.bytes);assert.ok(decoded.startsWith('"摘要,メモ","金額"\r\n'));assert.ok(decoded.includes('"日本語,""引用""\n改行","100"'));
+const utf8=buildJournalCsv(entries);assert.equal(Buffer.from(utf8.bytes.subarray(0,3)).toString('hex'),'efbbbf');assert.ok(new TextDecoder().decode(utf8.bytes).includes('日本語'));
+const tab=buildJournalCsv(entries,{columns:cols,encoding:'utf-8',delimiter:'\\t'});assert.ok(new TextDecoder().decode(tab.bytes).includes('"摘要,メモ"\t"金額"'));
+assert.throws(()=>buildJournalCsv([{...entries[0],description:'😀'}],{columns:cols,encoding:'shift_jis',delimiter:','}),/Shift_JIS/);
+console.log('PASS: zero/reduced tax, legacy ambiguity, inactive and duplicate products, purchase statuses/cancellation, real Shift_JIS bytes, header quoting, tab/BOM, unrepresentable character errors');

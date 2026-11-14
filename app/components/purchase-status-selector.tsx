@@ -1,17 +1,9 @@
 'use client';
+import { PURCHASE_STATUSES } from '@/utils/purchase-status';
 
 import { useTransition, useState } from 'react';
 import { updatePurchaseStatus } from '@/app/actions/purchases';
 import { CheckCircle2, Clock, Send, ChevronDown, Loader2, FileText, Package, ClipboardCheck } from 'lucide-react';
-
-const STATUS_OPTIONS = [
-    '下書き',
-    '承認待ち',
-    '発注済',
-    '入荷済',
-    '検収済',
-    'キャンセル'
-] as const;
 
 const getStatusConfig = (status: string) => {
     switch (status) {
@@ -78,7 +70,8 @@ export default function PurchaseStatusSelector({
                     disabled={isPending}
                     className="appearance-none bg-transparent py-1.5 pl-8 pr-8 text-xs font-bold outline-none cursor-pointer disabled:cursor-not-allowed"
                 >
-                    {STATUS_OPTIONS.map(status => (
+                    {!PURCHASE_STATUSES.includes(currentStatus as typeof PURCHASE_STATUSES[number]) && <option value={currentStatus}>{currentStatus}</option>}
+                    {PURCHASE_STATUSES.map(status => (
                         <option key={status} value={status} className="text-slate-900 bg-white">
                             {status}
                         </option>

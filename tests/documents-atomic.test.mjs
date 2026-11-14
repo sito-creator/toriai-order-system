@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+const db=new PGlite();
+const own='00000000-0000-0000-0000-000000000001',foreign='00000000-0000-0000-0000-000000000002',user='00000000-0000-0000-0000-000000000003',customer='00000000-0000-0000-0000-000000000004',product='00000000-0000-0000-0000-000000000005',supplier='00000000-0000-0000-0000-000000000006',sp='00000000-0000-0000-0000-000000000007';
+await db.exec(`
+create role anon; create role authenticated; create schema auth;
+create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+grant usage on schema auth to authenticated;
+create table companies(id uuid primary key);insert into companies values('${own}'),('${foreign}');
+create table profiles(id uuid primary key,company_id uuid);insert into profiles values('${user}','${own}');
+create function public.get_my_company_id() returns uuid language sql stable security definer set search_path='' as $$select company_id from public.profiles where id=auth.uid()$$;
+create table customers(id uuid primary key,company_id uuid);insert into customers values('${customer}','${own}'),('${foreign}','${foreign}');
+create table products(id uuid primary key,company_id uuid);insert into products values('${product}','${own}'),('${foreign}','${foreign}');
+create table suppliers(id uuid primary key,company_id uuid);insert into suppliers values('${supplier}','${own}'),('${foreign}','${foreign}');
+create table supplier_products(id uuid primary key,company_id uuid,supplier_id uuid);insert into supplier_products values('${sp}','${own}','${supplier}'),('${foreign}','${foreign}','${foreign}');
+create table purchases(id uuid primary key default gen_random_uuid(),company_id uuid not null,purchase_number text,supplier_id uuid,status text,total_amount numeric,purchase_date date,expected_delivery_date date);
+create table quotes(id uuid primary key default gen_random_uuid(),company_id uuid not null,quote_number text,customer_id uuid,subject text,total_amount numeric,status text,valid_until date);
+create table quote_lines(id uuid primary key default gen_random_uuid(),company_id uuid not null,quote_id uuid,line_no integer,item_name text,quantity numeric,unit_price numeric,amount numeric,unit text);
+create table invoices(id uuid primary key default gen_random_uuid(),company_id uuid not null,invoice_number text,customer_id uuid,total_amount numeric,status text,issue_date date,due_date date);
+create table invoice_lines(id uuid primary key default gen_random_uuid(),company_id uuid not null,invoice_id uuid,line_no integer,item_name text,quantity numeric,unit_price numeric,amount numeric,tax_rate numeric,tax_amount numeric,unit text,delivery_date date);
+grant select,insert,update,delete on customers,products,suppliers,supplier_products,purchases,quotes,quote_lines,invoices,invoice_lines to authenticated;
+`);
+for(const table of ['customers','products','suppliers','supplier_products','purchases','quotes','quote_lines','invoices','invoice_lines'])await db.exec(`alter table ${table} enable row level security;create policy company on ${table} for all to authenticated using(company_id=get_my_company_id()) with check(company_id=get_my_company_id());`);
+const migration=await fs.readFile(new URL('../supabase_migration_additional_fixes_20261114.sql',import.meta.url),'utf8');await db.exec(migration);
+// The migration is safely repeatable and never backfills legacy taxes.
+await db.exec(migration);
+await db.exec(`create function public.fail_qa_line() returns trigger language plpgsql as $$begin if new.unit_price=99123 then raise exception 'forced line failure';end if;return new;end$$;create trigger fail_qa_purchase before insert on purchase_lines for each row execute function fail_qa_line();create trigger fail_qa_quote before insert on quote_lines for each row execute function fail_qa_line();create trigger fail_qa_invoice before insert on invoice_lines for each row execute function fail_qa_line();`);
+await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);await db.exec('set role authenticated');
+const line={product_id:product,product_name:'研修',quantity:3,unit_price:100,tax_rate:8,amount:9999,tax_amount:9999};
+const header={customer_id:customer,quote_number:'QA',invoice_number:'QA',subject:'qa',valid_until:'2026-11-30',issue_date:'2026-11-14',due_date:'2026-12-20'};
+const saveDoc=(kind,h=header,l=[line])=>db.query('select create_document_with_lines($1,$2,$3) as id',[kind,h,l]);
+const count=async(table)=>Number((await db.query(`select count(*) as n from ${table}`)).rows[0].n);
+for(const kind of ['quote','invoice']){
+ const table=kind==='quote'?'quotes':'invoices',lt=kind==='quote'?'quote_lines':'invoice_lines',fk=kind==='quote'?'quote_id':'invoice_id';
+ const id=(await saveDoc(kind)).rows[0].id;assert.equal(Number((await db.query(`select total_amount from ${table} where id=$1`,[id])).rows[0].total_amount),324);
+ const stored=(await db.query(`select * from ${lt} where ${fk}=$1`,[id])).rows[0];assert.equal(Number(stored.tax_rate),8);assert.equal(Number(stored.tax_amount),24);assert.equal(stored.company_id,own);
+ const before=await count(table);await assert.rejects(saveDoc(kind,header,[{...line,unit_price:99123}]),/forced line failure/);assert.equal(await count(table),before,'header must roll back');
+ await assert.rejects(saveDoc(kind,{...header,customer_id:foreign}),/取引先/);
+ await assert.rejects(saveDoc(kind,header,[{...line,product_id:foreign}]),/商品/);
+ await assert.rejects(saveDoc(kind,header,[{...line,tax_rate:-1}]),/税率/);
+ const zero=(await saveDoc(kind,header,[{...line,tax_rate:0}])).rows[0].id;assert.equal(Number((await db.query(`select total_amount from ${table} where id=$1`,[zero])).rows[0].total_amount),300);
+}
+const ph={supplier_id:supplier,purchase_number:'QA-PUR',purchase_date:'2026-11-14'};
+const pl={supplier_product_id:sp,product_name:'仕入テスト',quantity:2,unit_price:1200,tax_rate:10,amount:999,tax_amount:999};
+const savePurchase=(h=ph,l=[pl])=>db.query('select create_purchase_with_lines($1,$2) as id',[h,l]);
+const pid=(await savePurchase()).rows[0].id;assert.equal(Number((await db.query('select total_amount from purchases where id=$1',[pid])).rows[0].total_amount),2640);assert.equal(await count('purchase_lines'),1);
+let before=await count('purchases');await assert.rejects(savePurchase(ph,[{...pl,unit_price:99123}]),/forced line failure/);assert.equal(await count('purchases'),before);
+await assert.rejects(savePurchase({...ph,supplier_id:foreign}),/仕入先/);await assert.rejects(savePurchase(ph,[{...pl,supplier_product_id:foreign}]),/仕入先/);
+await assert.rejects(savePurchase(ph,[]),/明細/);
+await assert.rejects(db.query('insert into purchase_lines(company_id,purchase_id,line_no,product_name,quantity,unit_price,amount,tax_rate,tax_amount) values($1,$2,10,\'bad\',1,0,0,0,0)',[foreign,pid]),/row-level security/);
+await db.exec('reset role');await db.exec('set role anon');await assert.rejects(db.query('select * from purchase_lines'),/permission denied/);await assert.rejects(savePurchase(),/permission denied/);await assert.rejects(saveDoc('quote'),/permission denied/);
+await db.close();console.log('PASS: repeatable migration; quote/invoice/purchase atomic saves; 8% and 0%; tax recomputation; forced line failure rolls back header; supplier/customer/product ownership; line RLS and anonymous rejection');

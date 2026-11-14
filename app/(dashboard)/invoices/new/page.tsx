@@ -1,8 +1,9 @@
-import { documentNumber } from '@/utils/document-number';
+import SaveForm from '@/app/components/save-form';
+import { createInvoice } from '@/app/actions/save-documents';
+import { inheritedLines } from '@/utils/document-lines';
+import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { FileText, Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import OrderLinesForm from '../../orders/new/order-lines-form';
@@ -14,153 +15,27 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
     const { data: customers } = await supabase.from('customers').select('id, company_name').eq('company_id', companyId);
     
     const { data: products } = await supabase.from('products').select('*').eq('company_id', companyId).order('product_name');
-    const activeProducts = products?.filter(p => p.is_active !== false) || [];
     
-    // 見積書または受注からの作成の場合、データを取得
     let sourceData: any = null;
     let initialLines: any[] = [];
     let sourceType: 'quote' | 'order' | null = null;
-
-    if (resolvedSearchParams?.quoteId) {
-        const { data: quote } = await supabase.from('quotes').select('*').eq('id', resolvedSearchParams.quoteId).single();
-        sourceData = quote;
-        sourceType = 'quote';
-        
-        const { data: quoteLines } = await supabase.from('quote_lines').select('*').eq('quote_id', quote.id).order('line_no');
-        if (quoteLines) {
-            initialLines = quoteLines.map((l: any) => {
-                const matchedProduct = activeProducts.find(p => p.product_name === l.item_name);
-                return {
-                    product_id: matchedProduct?.id || '',
-                    product_name: l.item_name,
-                    quantity: l.quantity,
-                    unit_price: l.unit_price,
-                    amount: l.amount,
-                    tax_rate: matchedProduct?.tax_rate || 10,
-                    tax_amount: matchedProduct ? Math.floor(l.amount * (matchedProduct.tax_rate || 10) / 100) : Math.floor(l.amount * 0.1),
-                    delivery_date: l.delivery_date || new Date().toISOString().split('T')[0],
-                    unit: l.unit || matchedProduct?.unit || ''
-                };
-            });
-        }
-    } else if (resolvedSearchParams?.orderId) {
-        const { data: order } = await supabase.from('orders').select('*').eq('id', resolvedSearchParams.orderId).single();
-        sourceData = order;
-        sourceType = 'order';
-        
-        const { data: orderLines } = await supabase.from('order_lines').select('*, products(product_name)').eq('order_id', order.id).order('line_no');
-        if (orderLines) {
-            initialLines = orderLines.map((l: any) => ({
-                product_id: l.product_id || '',
-                product_name: l.products?.product_name || `商品ID: ${l.product_id}`,
-                quantity: l.quantity,
-                unit_price: l.unit_price,
-                amount: l.amount,
-                tax_rate: l.tax_rate || 10,
-                tax_amount: l.tax_amount || 0,
-                delivery_date: l.delivery_date || new Date().toISOString().split('T')[0],
-                unit: l.unit || ''
-            }));
-        }
+    let taxNotice = '';
+    const today = new Date().toISOString().split('T')[0];
+    const sourceId = resolvedSearchParams.quoteId || resolvedSearchParams.orderId;
+    if (sourceId) {
+        sourceType = resolvedSearchParams.quoteId ? 'quote' : 'order';
+        const table = sourceType === 'quote' ? 'quotes' : 'orders';
+        const {data:record,error} = await supabase.from(table).select('*').eq('id',sourceId).eq('company_id',companyId).maybeSingle();
+        if(error || !record) notFound();
+        sourceData=record;
+        const {data:lines,error:lineError} = await supabase.from(sourceType==='quote'?'quote_lines':'order_lines').select('*').eq(sourceType==='quote'?'quote_id':'order_id',record.id).eq('company_id',companyId).order('line_no');
+        if(lineError) throw new Error('元の明細を取得できませんでした。');
+        const inherited=inheritedLines(lines||[],products||[],sourceType,Number(record.total_amount),today);
+        initialLines=inherited.lines;
+        if(inherited.legacyInferred)taxNotice='旧形式の見積の税率を保存済み合計額から復元しました。税率と金額をご確認ください。';
+        if(inherited.needsTaxReview)taxNotice='元の見積に税率情報がありません。各明細の税率を確認・選択してから保存してください。';
     }
-
-    async function createInvoice(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const companyId = await getCurrentCompanyId();
-        const invoice_number = documentNumber('INV');
-        const source_id = formData.get('source_id') as string;
-        const source_type = formData.get('source_type') as string;
-        const linesJson = formData.get('lines') as string;
-        const linesData = linesJson ? JSON.parse(linesJson) : [];
-        
-        let subtotal = 0;
-        let tax_amount = 0;
-        
-        if (linesData && linesData.length > 0) {
-            subtotal = linesData.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
-            tax_amount = linesData.reduce((sum: number, l: any) => sum + (Number(l.tax_amount) || 0), 0);
-        } else {
-            // 互換性のため残す
-            subtotal = Number(formData.get('subtotal') || 0);
-            tax_amount = Math.floor(subtotal * 0.1);
-        }
-
-        const { data: newInvoice, error } = await supabase.from('invoices').insert({
-            company_id: companyId,
-            invoice_number,
-            customer_id: formData.get('customer_id'),
-            issue_date: formData.get('issue_date'),
-            due_date: formData.get('due_date'),
-            total_amount: subtotal + tax_amount,
-            status: '下書き'
-        }).select().single();
-
-        if (error) {
-            console.error('Invoice creation error:', error);
-            throw new Error(`Failed to create invoice: ${error.message}`);
-        }
-
-        if (newInvoice) {
-            // 手入力明細がある場合
-            if (linesData && linesData.length > 0) {
-                const invoiceLines = linesData.map((line: any, i: number) => ({
-                    company_id: companyId,
-                    invoice_id: newInvoice.id,
-                    line_no: i + 1,
-                    item_name: line.product_name || `商品ID: ${line.product_id}`,
-                    quantity: line.quantity,
-                    unit_price: line.unit_price,
-                    amount: line.amount,
-                    delivery_date: line.delivery_date || null,
-                    tax_rate: Number(line.tax_rate) || 0,
-                    tax_amount: Number(line.tax_amount) || 0,
-                    unit: line.unit || null
-                }));
-                const { error: linesError } = await supabase.from('invoice_lines').insert(invoiceLines);
-                if (linesError) {
-                    console.error('Invoice lines creation error:', linesError);
-                }
-            } else if (source_id) {
-                let lines = null;
-                if (source_type === 'quote') {
-                    const { data } = await supabase.from('quote_lines').select('*').eq('quote_id', source_id);
-                    lines = data;
-                } else if (source_type === 'order') {
-                    const { data } = await supabase.from('order_lines').select('*, products(product_name)').eq('order_id', source_id);
-                    if (data) {
-                        lines = data.map((l: any) => ({
-                            ...l,
-                            item_name: l.products?.product_name || `商品ID: ${l.product_id}`
-                        }));
-                    }
-                }
-
-                if (lines && lines.length > 0) {
-                    const invoiceLines = lines.map((line: any, i: number) => ({
-                        company_id: companyId,
-                        invoice_id: newInvoice.id,
-                        line_no: line.line_no || i + 1,
-                        item_name: line.item_name || '名称未設定',
-                        quantity: line.quantity,
-                        unit_price: line.unit_price,
-                        amount: line.amount,
-                        delivery_date: line.delivery_date || null,
-                        tax_rate: Number(line.tax_rate) || 10,
-                        tax_amount: Number(line.tax_amount) || Math.floor(Number(line.amount || 0) * (Number(line.tax_rate) || 10) / 100),
-                        unit: line.unit || null
-                    }));
-                    const { error: linesError } = await supabase.from('invoice_lines').insert(invoiceLines);
-                    if (linesError) {
-                        console.error('Invoice lines creation error from source:', linesError);
-                    }
-                }
-            }
-        }
-
-        revalidatePath('/invoices');
-        redirect('/invoices');
-    }
+    const activeProducts=(products||[]).filter(product=>product.is_active!==false || initialLines.some(line=>line.product_id===product.id));
 
     return (
         <div className="max-w-3xl mx-auto space-y-6">
@@ -171,7 +46,8 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
                 <h1 className="text-2xl font-bold text-slate-900">新規請求書作成</h1>
             </div>
 
-            <form action={createInvoice} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 flex flex-col">
+            <SaveForm action={createInvoice} successPath="/invoices" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 flex flex-col">
+                {taxNotice && <p role="status" className="p-3 bg-amber-50 text-amber-800 rounded-lg">{taxNotice}</p>}
                 {sourceData && (
                     <>
                         <input type="hidden" name="source_id" value={sourceData.id} />
@@ -209,7 +85,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
                         保存して一覧へ
                     </button>
                 </div>
-            </form>
+            </SaveForm>
         </div>
     );
 }

@@ -1,6 +1,7 @@
+import SaveForm from '@/app/components/save-form';
+import { createSupplierProduct } from '@/app/actions/suppliers';
+import { getCurrentCompanyId } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/server';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { Save, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -11,54 +12,18 @@ export default async function NewSupplierProductPage({
 }) {
     const params = await searchParams;
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId();
 
     // 仕入先一覧と商品一覧を取得（プルダウン用）
     const { data: suppliers } = await supabase
         .from('suppliers')
-        .select('id, company_name')
+        .select('id, company_name').eq('company_id',companyId)
         .order('company_name');
 
     const { data: products } = await supabase
         .from('products')
-        .select('id, product_name, product_code')
+        .select('id, product_name, product_code').eq('company_id',companyId)
         .order('product_name');
-
-    async function addSupplierProduct(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-
-        const supplierId = formData.get('supplier_id') as string;
-        const productId = formData.get('product_id') as string;
-
-        if (!supplierId) {
-            redirect('/supplier-products/new?error=' + encodeURIComponent('仕入先を選択してください'));
-            return;
-        }
-
-        const insertData: Record<string, any> = {
-            supplier_id: supplierId,
-            product_id: productId || null,
-            product_name: (formData.get('supplier_product_name') as string) || '名称未設定',
-            supplier_product_code: formData.get('supplier_product_code') || null,
-            supplier_product_name: formData.get('supplier_product_name') || null,
-            purchase_price: Number(formData.get('purchase_price')) || 0,
-            min_order_qty: Number(formData.get('min_order_qty')) || 1,
-            lead_time_days: Number(formData.get('lead_time_days')) || null,
-        };
-
-        const { error } = await supabase
-            .from('supplier_products')
-            .insert([insertData])
-            .select();
-
-        if (error) {
-            redirect('/supplier-products/new?error=' + encodeURIComponent(error.message));
-            return;
-        }
-
-        revalidatePath('/supplier-products');
-        redirect('/supplier-products');
-    }
 
     return (
         <div className="max-w-3xl mx-auto space-y-6">
@@ -84,7 +49,7 @@ export default async function NewSupplierProductPage({
             )}
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                <form action={addSupplierProduct} className="p-6 space-y-6">
+                <SaveForm action={createSupplierProduct} successPath="/supplier-products" className="p-6 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* 仕入先（必須） */}
                         <div className="space-y-2 md:col-span-2">
@@ -157,7 +122,7 @@ export default async function NewSupplierProductPage({
                             <span>登録する</span>
                         </button>
                     </div>
-                </form>
+                </SaveForm>
             </div>
         </div>
     );

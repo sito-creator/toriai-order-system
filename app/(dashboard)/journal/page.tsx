@@ -1,3 +1,4 @@
+import { isRecognizedPurchase } from '@/utils/purchase-status';
 import { isPostedInvoice } from '@/utils/accounting-status';
 import { createClient } from '@/utils/supabase/server';
 import { BookOpen, Settings } from 'lucide-react';
@@ -61,7 +62,7 @@ export default async function JournalPage() {
 
     if (purchases) {
         for (const pur of purchases) {
-            if (!pur.total_amount) continue;
+            if (!pur.total_amount || !isRecognizedPurchase(pur)) continue;
             journalEntries.push({
                 id: `pur-${pur.id}`, date: pur.purchase_date || '',
                 debit_account: '仕入高', credit_account: '買掛金', amount: pur.total_amount,

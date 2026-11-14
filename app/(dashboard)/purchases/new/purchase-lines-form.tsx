@@ -68,7 +68,7 @@ export default function PurchaseLinesForm({
                     line.supplier_product_id = sp.id;
                     line.product_name = sp.supplier_product_name;
                     line.unit_price = Number(sp.purchase_price) || 0;
-                    line.tax_rate = Number(sp.tax_rate) || 10;
+                    line.tax_rate = Number(sp.tax_rate ?? 10);
                     line.unit = sp.unit || '個';
                     line.amount = line.quantity * line.unit_price;
                     line.tax_amount = Math.floor(line.amount * line.tax_rate / 100);

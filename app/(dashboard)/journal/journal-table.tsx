@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { buildJournalCsv } from '@/utils/journal-csv';
 import { Download, BookOpen, ArrowUpDown, Search, Filter } from 'lucide-react';
 
 type JournalEntry = {
@@ -32,52 +33,19 @@ export default function JournalTable({ entries, csvFormat }: { entries: JournalE
 
     const totalAmount = filteredEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    const getFieldValue = (entry: JournalEntry, field: string, fixedValue: string): string => {
-        switch (field) {
-            case 'date': return entry.date || '';
-            case 'debit_account': return entry.debit_account || '';
-            case 'credit_account': return entry.credit_account || '';
-            case 'amount': return String(entry.amount || 0);
-            case 'debit_amount': return String(entry.amount || 0);
-            case 'credit_amount': return String(entry.amount || 0);
-            case 'description': return entry.description || '';
-            case 'source_type': return entry.source_type || '';
-            case 'source_number': return entry.source_number || '';
-            case 'tax_category': return '対象外';
-            case 'fixed': return fixedValue || '';
-            case 'empty': return '';
-            default: return '';
-        }
-    };
-
+    const [exportError,setExportError]=useState('');
     const exportCSV = () => {
-        const hasCustomFormat = csvFormat?.columns && csvFormat.columns.length > 0;
-        const delim = hasCustomFormat ? (csvFormat!.delimiter === '\\t' || csvFormat!.delimiter === '\t' ? '\t' : csvFormat!.delimiter || ',') : ',';
-
-        let headers: string[];
-        let rows: string[][];
-
-        if (hasCustomFormat) {
-            headers = csvFormat!.columns.map(c => c.header);
-            rows = sortedEntries.map(e => csvFormat!.columns.map(c => getFieldValue(e, c.field, c.fixedValue)));
-        } else {
-            headers = ['日付', '借方勘定', '貸方勘定', '金額', '摘要', '伝票種別', '伝票番号'];
-            rows = sortedEntries.map(e => [e.date, e.debit_account, e.credit_account, String(e.amount || 0), e.description, e.source_type, e.source_number]);
-        }
-
-        const csvContent = [
-            headers.join(delim),
-            ...rows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(delim))
-        ].join('\n');
-
-        const bom = '\uFEFF';
-        const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `仕訳元帳_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        setExportError('');
+        try {
+            const {bytes,mime}=buildJournalCsv(sortedEntries,csvFormat);
+            const blob=new Blob([Uint8Array.from(bytes).buffer],{type:mime});
+            const url=URL.createObjectURL(blob);
+            const link=document.createElement('a');
+            link.href=url;
+            link.download=`仕訳元帳_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);link.click();link.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),1000);
+        } catch(error) {setExportError(error instanceof Error?error.message:'CSVを作成できませんでした。');}
     };
 
     const toggleSort = (field: 'date' | 'amount') => {
@@ -87,6 +55,7 @@ export default function JournalTable({ entries, csvFormat }: { entries: JournalE
 
     return (
         <div className="space-y-4">
+            {exportError && <p role="alert" className="p-4 bg-rose-50 text-rose-700 rounded-xl">{exportError}</p>}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 w-full sm:w-auto">
                     <div className="relative flex-1 max-w-sm">

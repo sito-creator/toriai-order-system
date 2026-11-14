@@ -1,3 +1,5 @@
+import SaveForm from '@/app/components/save-form';
+import { createQuoteForOrder } from '@/app/actions/save-documents';
 import { documentNumber } from '@/utils/document-number';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
@@ -69,70 +71,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         revalidatePath('/orders');
     }
 
-    async function createQuoteFromOrder() {
-        'use server';
-        const supabase = await createClient();
-        const companyId = await getCurrentCompanyId();
-        const quote_number = documentNumber('QUO');
-        const { data: newQuote, error: quoError } = await supabase.from('quotes').insert({
-            company_id: companyId,
-            quote_number,
-            customer_id: order.customer_id,
-            subject: `${order.order_number} のお見積り`,
-            total_amount: order.total_amount,
-            status: '下書き',
-            valid_until: order.delivery_date
-        }).select().single();
-
-        if (!quoError && newQuote && order.order_lines && order.order_lines.length > 0) {
-            const quoteLines = order.order_lines.map((line: any, i: number) => ({
-                company_id: companyId,
-                quote_id: newQuote.id,
-                line_no: i + 1,
-                item_name: line.products?.product_name || `商品ID: ${line.product_id}`,
-                quantity: line.quantity,
-                unit_price: line.unit_price,
-                amount: line.amount
-            }));
-            // テーブルが存在しない場合を考慮しエラーを無視
-            await supabase.from('quote_lines').insert(quoteLines);
-        }
-        redirect('/quotes');
-    }
-
-    async function createInvoiceFromOrder() {
-        'use server';
-        const supabase = await createClient();
-        const {data: currentOrder} = await supabase.from('orders').select('pos_sale_id').eq('id',id).single();
-        if (!currentOrder || currentOrder.pos_sale_id) throw new Error('POS会計から重複請求書を作成することはできません。');
-        const companyId = await getCurrentCompanyId();
-        const invoice_number = documentNumber('INV');
-        const { data: newInvoice, error: invError } = await supabase.from('invoices').insert({
-            company_id: companyId,
-            invoice_number,
-            customer_id: order.customer_id,
-            subtotal: order.total_amount,
-            tax_amount: (order.total_amount || 0) * 0.1,
-            grand_total: (order.total_amount || 0) * 1.1,
-            status: '下書き',
-            issue_date: new Date().toISOString().split('T')[0]
-        }).select().single();
-
-        if (!invError && newInvoice && order.order_lines && order.order_lines.length > 0) {
-            const invoiceLines = order.order_lines.map((line: any, i: number) => ({
-                company_id: companyId,
-                invoice_id: newInvoice.id,
-                line_no: i + 1,
-                item_name: line.products?.product_name || `商品ID: ${line.product_id}`,
-                quantity: line.quantity,
-                unit_price: line.unit_price,
-                amount: line.amount
-            }));
-            await supabase.from('invoice_lines').insert(invoiceLines);
-        }
-        redirect('/invoices');
-    }
-
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -176,12 +114,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         <Pencil size={16} className="text-slate-500" />
                         <span>編集</span>
                     </Link>
-                    <form action={createQuoteFromOrder}>
+                    <SaveForm action={createQuoteForOrder} successPath="/quotes">
+                        <input type="hidden" name="order_id" value={id}/>
                         <button type="submit" className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-medium transition-colors shadow-sm">
                             <Calculator size={16} className="text-indigo-500" />
                             <span>見積書作成</span>
                         </button>
-                    </form>
+                    </SaveForm>
                     <Link href={`/invoices/new?orderId=${order.id}`} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white border border-transparent rounded-xl font-medium transition-colors shadow-sm">
                         <FileOutput size={16} />
                         <span>請求書作成</span>

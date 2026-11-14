@@ -1,7 +1,7 @@
+import SaveForm from '@/app/components/save-form';
+import { createPurchase } from '@/app/actions/save-documents';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { ArrowLeft, Save, ShoppingCart } from 'lucide-react';
 import PurchaseLinesForm from './purchase-lines-form';
@@ -25,10 +25,10 @@ export default async function NewPurchasePage() {
 
     const formattedSupplierProducts = (supplierProducts || []).map((sp: any) => ({
         id: sp.id,
-        supplier_product_name: sp.supplier_product_name || '',
+        supplier_product_name: sp.supplier_product_name || sp.product_name || '',
         supplier_product_code: sp.supplier_product_code || null,
-        purchase_price: sp.purchase_price || null,
-        tax_rate: sp.tax_rate || null,
+        purchase_price: sp.purchase_price ?? null,
+        tax_rate: sp.tax_rate ?? null,
         unit: sp.unit || null,
         supplier_id: sp.supplier_id || null,
         supplier_name: sp.suppliers?.company_name || '',
@@ -40,65 +40,6 @@ export default async function NewPurchasePage() {
         .from('purchases')
         .select('*', { count: 'exact', head: true });
     const purchaseNumber = `PUR-${year}-${String((count || 0) + 1).padStart(4, '0')}`;
-
-    async function createPurchase(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const companyId = await getCurrentCompanyId();
-
-        const linesJson = formData.get('lines') as string;
-        const lines = linesJson ? JSON.parse(linesJson) : [];
-
-        const subtotal = lines.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
-        const taxAmount = lines.reduce((sum: number, l: any) => sum + (Number(l.tax_amount) || 0), 0);
-        const totalAmount = subtotal + taxAmount;
-
-        const supplierId = formData.get('supplier_id');
-
-        const { data: purchase, error } = await supabase
-            .from('purchases')
-            .insert({
-                company_id: companyId,
-                purchase_number: formData.get('purchase_number'),
-                supplier_id: supplierId || null,
-                purchase_date: formData.get('purchase_date') || null,
-                expected_delivery_date: formData.get('expected_delivery_date') || null,
-                status: '下書き',
-                total_amount: totalAmount,
-            })
-            .select('id')
-            .single();
-
-        if (error) {
-            console.error('Purchase insert error:', error);
-            throw new Error(`発注の保存に失敗しました: ${JSON.stringify(error)}`);
-        }
-
-        // 明細行を挿入
-        if (lines.length > 0 && purchase) {
-            const purchaseLines = lines.map((line: any, i: number) => ({
-                company_id: companyId,
-                purchase_id: purchase.id,
-                line_no: i + 1,
-                supplier_product_id: line.supplier_product_id || null,
-                product_name: line.product_name || '',
-                quantity: Number(line.quantity) || 0,
-                unit: line.unit || null,
-                unit_price: Number(line.unit_price) || 0,
-                amount: Number(line.amount) || 0,
-                tax_rate: Number(line.tax_rate) || 10,
-                tax_amount: Number(line.tax_amount) || 0,
-            }));
-
-            const { error: linesError } = await supabase.from('purchase_lines').insert(purchaseLines);
-            if (linesError) {
-                console.error('Purchase lines insert error:', linesError);
-            }
-        }
-
-        revalidatePath('/purchases');
-        redirect('/purchases');
-    }
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -115,7 +56,7 @@ export default async function NewPurchasePage() {
                 </div>
             </div>
 
-            <form action={createPurchase}>
+            <SaveForm action={createPurchase} successPath="/purchases">
                 {/* 基本情報 */}
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5 mb-6">
                     <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider pb-3 border-b border-slate-100">基本情報</h2>
@@ -179,7 +120,7 @@ export default async function NewPurchasePage() {
                         <span>発注を保存</span>
                     </button>
                 </div>
-            </form>
+            </SaveForm>
         </div>
     );
 }

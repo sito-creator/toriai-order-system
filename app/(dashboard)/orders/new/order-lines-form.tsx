@@ -60,16 +60,16 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                     line.unit_price = Number(product.price || product.standard_price) || 0;
                     line.tax_rate = Number(product.tax_rate ?? 10);
                     line.amount = line.quantity * line.unit_price;
-                    line.tax_amount = Math.floor(line.amount * line.tax_rate / 100);
+                    line.tax_amount = line.tax_rate < 0 ? 0 : Math.floor(line.amount * line.tax_rate / 100);
                 }
             } else {
                 (line as any)[field] = value;
                 if (field === 'quantity' || field === 'unit_price') {
                     line.amount = Number(line.quantity) * Number(line.unit_price);
-                    line.tax_amount = Math.floor(line.amount * line.tax_rate / 100);
+                    line.tax_amount = line.tax_rate < 0 ? 0 : Math.floor(line.amount * line.tax_rate / 100);
                 }
                 if (field === 'tax_rate') {
-                    line.tax_amount = Math.floor(line.amount * Number(value) / 100);
+                    line.tax_amount = Number(value) < 0 ? 0 : Math.floor(line.amount * Number(value) / 100);
                 }
             }
 
@@ -169,6 +169,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                                             onChange={(e) => updateLine(i, 'tax_rate', Number(e.target.value))}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2"
                                         >
+                                            {line.tax_rate < 0 && <option value={-1}>税率を確認してください</option>}
                                             <option value={10}>10%（標準）</option>
                                             <option value={8}>8%（軽減）</option>
                                             <option value={0}>非課税</option>
