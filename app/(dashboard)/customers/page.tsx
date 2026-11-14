@@ -1,3 +1,4 @@
+import MasterSearch, { MasterSearchRow } from '@/app/components/master-search';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
@@ -38,19 +39,7 @@ export default async function CustomersPage() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                {/* Toolbar */}
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="会社名や担当者で検索..."
-                            className="w-full bg-slate-50 hover:bg-slate-100/50 border border-slate-200 text-slate-900 rounded-lg py-2.5 pl-10 pr-4 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-sm"
-                        />
-                    </div>
-                </div>
-
-                {/* Table */}
+                <MasterSearch searchValues={(customers || []).map(customer => [customer.company_name || '',customer.contact_name || ''].join(' '))} placeholder="会社名や担当者で検索...">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap">
                         <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
@@ -65,7 +54,7 @@ export default async function CustomersPage() {
                         <tbody className="divide-y divide-slate-100">
                             {customers && customers.length > 0 ? (
                                 customers.map((customer) => (
-                                    <tr key={customer.id} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
+                                    <MasterSearchRow searchText={[customer.company_name || '',customer.contact_name || ''].join(' ')} key={customer.id} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
                                         <td className="py-4 px-6">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500 shrink-0 shadow-sm">
@@ -106,7 +95,7 @@ export default async function CustomersPage() {
                                                 編集
                                             </Link>
                                         </td>
-                                    </tr>
+                                    </MasterSearchRow>
                                 ))
                             ) : (
                                 <tr>
@@ -124,6 +113,7 @@ export default async function CustomersPage() {
                         </tbody>
                     </table>
                 </div>
+                </MasterSearch>
             </div>
         </div>
     );

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {isRecognizedOrder} from '../utils/order-sales.ts';
+import {isPostedInvoice} from '../utils/accounting-status.ts';
+import {documentNumber} from '../utils/document-number.ts';
+for(const source_type of ['POS','手入力',null]) for(const status of ['キャンセル','取消済','cancelled','voided']) assert.equal(isRecognizedOrder({source_type,status}),false);
+assert.equal(isRecognizedOrder({source_type:'手入力',status:'確認待ち'}),true);
+assert.equal(isRecognizedOrder({source_type:'POS',status:'納品済'}),true);
+for(const status of ['下書き','キャンセル','取消済',null]) assert.equal(isPostedInvoice({status}),false);
+for(const status of ['発行済','送付済','入金済','期日超過']) assert.equal(isPostedInvoice({status}),true);
+assert.equal(documentNumber('QUO',new Date('2026-12-31T15:00:00Z'),'a1-b2'),'QUO-2027-A1B2');
+assert.equal(documentNumber('INV',new Date('2026-11-14T00:00:00Z'),'a1-b2'),'INV-2026-A1B2');
+assert.notEqual(documentNumber('INV'),documentNumber('INV'));
+console.log('PASS: cancelled manual/POS orders excluded; drafts excluded; issued documents included; JST year and independent numbering');

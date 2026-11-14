@@ -1,3 +1,4 @@
+import { documentNumber } from '@/utils/document-number';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { notFound, redirect } from 'next/navigation';
@@ -72,7 +73,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         'use server';
         const supabase = await createClient();
         const companyId = await getCurrentCompanyId();
-        const quote_number = `QUO-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        const quote_number = documentNumber('QUO');
         const { data: newQuote, error: quoError } = await supabase.from('quotes').insert({
             company_id: companyId,
             quote_number,
@@ -105,7 +106,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         const {data: currentOrder} = await supabase.from('orders').select('pos_sale_id').eq('id',id).single();
         if (!currentOrder || currentOrder.pos_sale_id) throw new Error('POS会計から重複請求書を作成することはできません。');
         const companyId = await getCurrentCompanyId();
-        const invoice_number = `INV-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        const invoice_number = documentNumber('INV');
         const { data: newInvoice, error: invError } = await supabase.from('invoices').insert({
             company_id: companyId,
             invoice_number,
@@ -246,7 +247,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                     <tr key={line.id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="py-4 px-6 text-slate-400 font-mono">{line.line_no || i + 1}</td>
                                         <td className="py-4 px-6 font-semibold text-slate-900">
-                                            {line.products?.product_name || '商品情報なし'}
+                                            {line.item_name || line.products?.product_name || '商品情報なし'}
                                         </td>
                                         <td className="py-4 px-6 text-right font-medium">{line.quantity || 0}</td>
                                         <td className="py-4 px-6 text-right">¥{(line.unit_price || 0).toLocaleString()}</td>

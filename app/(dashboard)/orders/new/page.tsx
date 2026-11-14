@@ -1,7 +1,6 @@
+import OrderSaveForm from '@/app/components/order-save-form';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { ArrowLeft, Save, ShoppingBag } from 'lucide-react';
 import OrderLinesForm from './order-lines-form';
@@ -37,59 +36,6 @@ export default async function NewOrderPage() {
         .select('*', { count: 'exact', head: true });
     const orderNumber = `ORD-${year}-${String((count || 0) + 1).padStart(4, '0')}`;
 
-    async function createOrder(formData: FormData) {
-        'use server';
-        const supabase = await createClient();
-        const companyId = await getCurrentCompanyId();
-
-        const linesJson = formData.get('lines') as string;
-        const lines = linesJson ? JSON.parse(linesJson) : [];
-
-        const subtotal = lines.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
-        const taxAmount = lines.reduce((sum: number, l: any) => sum + (Number(l.tax_amount) || 0), 0);
-        const totalAmount = subtotal + taxAmount;
-
-        const { data: order, error } = await supabase
-            .from('orders')
-            .insert({
-                company_id: companyId,
-                order_number: formData.get('order_number') || `ORD-${Date.now()}`,
-                customer_id: formData.get('customer_id') || null,
-                order_date: formData.get('order_date') || null,
-                delivery_date: formData.get('delivery_date') || null,
-                status: '確認待ち',
-                source_type: '手入力',
-                total_amount: totalAmount,
-            })
-            .select('id')
-            .single();
-
-        if (error) {
-            console.error('Order insert error:', error);
-            throw new Error(`Order insertion failed: ${error.message} (code: ${error.code})`);
-        }
-
-        // 明細行を挿入
-        if (lines.length > 0 && order) {
-            const orderLines = lines.map((line: any, i: number) => ({
-                company_id: companyId,
-                order_id: order.id,
-                line_no: i + 1,
-                product_id: line.product_id || null,
-                quantity: Number(line.quantity) || 0,
-                unit_price: Number(line.unit_price) || 0,
-                amount: Number(line.amount) || 0,
-                tax_rate: Number(line.tax_rate) || 10,
-                tax_amount: Number(line.tax_amount) || 0,
-            }));
-
-            await supabase.from('order_lines').insert(orderLines);
-        }
-
-        revalidatePath('/orders');
-        redirect('/orders');
-    }
-
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
@@ -105,7 +51,7 @@ export default async function NewOrderPage() {
                 </div>
             </div>
 
-            <form action={createOrder}>
+            <OrderSaveForm>
                 {/* 基本情報 */}
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5 mb-6">
                     <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider pb-3 border-b border-slate-100">基本情報</h2>
@@ -164,7 +110,7 @@ export default async function NewOrderPage() {
                         <span>受注を登録</span>
                     </button>
                 </div>
-            </form>
+            </OrderSaveForm>
         </div>
     );
 }

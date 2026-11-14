@@ -58,7 +58,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "å
                     line.product_id = product.id;
                     line.product_name = product.product_name;
                     line.unit_price = Number(product.price || product.standard_price) || 0;
-                    line.tax_rate = Number(product.tax_rate) || 10;
+                    line.tax_rate = Number(product.tax_rate ?? 10);
                     line.amount = line.quantity * line.unit_price;
                     line.tax_amount = Math.floor(line.amount * line.tax_rate / 100);
                 }

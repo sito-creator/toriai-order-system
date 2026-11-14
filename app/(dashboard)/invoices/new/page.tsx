@@ -1,3 +1,4 @@
+import { documentNumber } from '@/utils/document-number';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
@@ -67,7 +68,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
         'use server';
         const supabase = await createClient();
         const companyId = await getCurrentCompanyId();
-        const invoice_number = `INV-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        const invoice_number = documentNumber('INV');
         const source_id = formData.get('source_id') as string;
         const source_type = formData.get('source_type') as string;
         const linesJson = formData.get('lines') as string;

@@ -1,3 +1,4 @@
+import { isPostedInvoice } from '@/utils/accounting-status';
 import { createClient } from '@/utils/supabase/server';
 import { BookOpen, Settings } from 'lucide-react';
 import Link from 'next/link';
@@ -40,7 +41,7 @@ export default async function JournalPage() {
 
     if (invoices) {
         for (const inv of invoices) {
-            if (!inv.total_amount) continue;
+            if (!inv.total_amount || !isPostedInvoice(inv)) continue;
             journalEntries.push({
                 id: `inv-sale-${inv.id}`, date: inv.issue_date || '',
                 debit_account: '売掛金', credit_account: '売上高', amount: inv.total_amount,

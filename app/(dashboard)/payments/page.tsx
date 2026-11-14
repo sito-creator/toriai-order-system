@@ -1,3 +1,4 @@
+import { isPostedInvoice } from '@/utils/accounting-status';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
@@ -17,7 +18,7 @@ export default async function PaymentsPage() {
         .eq('company_id', companyId)
         .order('due_date', { ascending: true });
 
-    const unpaidInvoices = invoices?.filter(inv => inv.status !== '入金済') || [];
+    const unpaidInvoices = invoices?.filter(inv => isPostedInvoice(inv) && inv.status !== '入金済') || [];
     const paidInvoices = invoices?.filter(inv => inv.status === '入金済') || [];
 
     const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);

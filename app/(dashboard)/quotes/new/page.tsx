@@ -1,3 +1,4 @@
+import { documentNumber } from '@/utils/document-number';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { redirect } from 'next/navigation';
@@ -17,7 +18,7 @@ export default async function NewQuotePage() {
         'use server';
         const supabase = await createClient();
         const companyId = await getCurrentCompanyId();
-        const quote_number = `QUO-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        const quote_number = documentNumber('QUO');
         const linesJson = formData.get('lines') as string;
         const linesData = linesJson ? JSON.parse(linesJson) : [];
         
