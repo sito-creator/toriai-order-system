@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';import fs from 'node:fs/promises';import vm from 'node:vm';import ts from 'typescript';
+import * as productCsv from '../utils/product-csv.ts';import * as bank from '../utils/bank-matching.ts';import * as accounting from '../utils/accounting-status.ts';
+async function scenario(file,{invoices=[{id:'a',total_amount:100,status:'発行済'}],fail=false,noRow=false,auth=false}={}){
+ const writes=[],filters=[],paths=[];const ctx=vm.createContext({console,File,FormData,TextDecoder});
+ const db={from(table){let writing=false;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(){return q},insert(payload){writing=true;writes.push(payload);return q},update(payload){writing=true;writes.push(payload);return q},maybeSingle:async()=>({data:noRow?null:{id:'a'},error:fail?{code:'42501'}:null}),then(a,b){return Promise.resolve({data:writing?(noRow?[]:[{id:'saved'}]):invoices,error:fail?{code:'42501'}:null}).then(a,b)}};return q}};
+ const deps={'@/utils/supabase/server':{createClient:async()=>db},'@/utils/auth':{getCurrentCompanyId:async()=>{if(auth)throw Error('auth');return 'own'}},'next/cache':{revalidatePath:p=>paths.push(p)},'@/utils/product-csv':productCsv,'@/utils/bank-matching':bank,'@/utils/accounting-status':accounting};
+ const js=ts.transpileModule(await fs.readFile(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+ const mod=new vm.SourceTextModule(js,{context:ctx});await mod.link(name=>{const d=deps[name];assert.ok(d,name);return new vm.SyntheticModule(Object.keys(d),function(){for(const[k,v]of Object.entries(d))this.setExport(k,v)},{context:ctx})});await mod.evaluate();return {api:mod.namespace,writes,filters,paths};
+}
+const csvForm=()=>{const f=new FormData();f.set('file',new File(['商品名,標準単価,仕入単価\n研修,10000,5000'],'test.csv'));return f};
+let s=await scenario('app/actions/csv.ts');let result=await s.api.importProductsCsv(csvForm());assert.equal(result.count,1);assert.equal(s.writes[0][0].company_id,'own');assert.equal(s.writes[0][0].standard_price,10000);assert.ok(s.paths.includes('/pos'));
+for(const options of [{fail:true},{noRow:true},{auth:true}]){s=await scenario('app/actions/csv.ts',options);await assert.rejects(()=>s.api.importProductsCsv(csvForm()));assert.equal(s.paths.length,0);}
+const file='app/(dashboard)/payments/payment-actions.ts',one=[{invoiceId:'a',amount:100}];
+s=await scenario(file);result=await s.api.reconcileBankRows(one);assert.equal(result.success,1);assert.equal(s.writes.length,1);assert.ok(s.filters.some(([k,v])=>k==='company_id'&&v==='own'));assert.ok(s.filters.some(([k,v])=>k==='status'&&v==='発行済'));assert.ok(s.filters.some(([k,v])=>k==='total_amount'&&v===100));
+s=await scenario(file);await assert.rejects(()=>s.api.reconcileBankRows([...one,...one]));assert.equal(s.writes.length,0);
+for(const options of [{invoices:[]},{invoices:[{id:'a',total_amount:200,status:'発行済'}]},{invoices:[{id:'a',total_amount:100,status:'入金済'}]},{invoices:[{id:'a',total_amount:100,status:'下書き'}]},{auth:true},{fail:true}]){s=await scenario(file,options);await assert.rejects(()=>s.api.reconcileBankRows(one));assert.equal(s.writes.length,0);}
+s=await scenario(file,{noRow:true});result=await s.api.reconcileBankRows(one);assert.equal(result.success,0);assert.equal(result.failed,1);
+s=await scenario(file,{invoices:[{id:'a',total_amount:100,status:'発行済'},{id:'b',total_amount:100,status:'送付済'}]});result=await s.api.reconcileBankRows([...one,{invoiceId:'b',amount:100}]);assert.equal(result.success,2);
+console.log('PASS: product action tenant/count/error/cache; bank action rejects duplicate, foreign/missing, stale amount/status, paid/draft and unauthenticated inputs before writing; compare-and-set conflict counted as failure; distinct equal-value invoices accepted');

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useTransition } from 'react';
 import { Upload, FileText, CheckCircle2, X, ArrowRight, Banknote, AlertCircle, ChevronDown } from 'lucide-react';
-import { markInvoiceAsPaid } from './payment-actions';
+import { reconcileBankRows } from './payment-actions';
+import { matchBankRows, bankSelectionError } from '@/utils/bank-matching';
 
 type Invoice = { id: string; invoice_number: string; total_amount: number; customer_name: string; due_date: string; };
 
@@ -18,6 +19,8 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
     const [isPending, startTransition] = useTransition();
     const [results, setResults] = useState({ success: 0, failed: 0 });
     const fileRef = useRef<HTMLInputElement>(null);
+    const [error,setError] = useState('');
+    const selectionError=bankSelectionError(matchRows,unpaidInvoices);
 
     const parseCSVLine = (line: string): string[] => {
         const result: string[] = [];
@@ -65,32 +68,32 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
                 const amtStr = (row[amountCol] || '').replace(/[,¥￥\s]/g, '');
                 const amt = parseFloat(amtStr);
                 if (isNaN(amt) || amt <= 0) return null;
-                const match = unpaidInvoices.find(inv => inv.total_amount === amt);
+
                 return {
                     date: dateCol >= 0 ? row[dateCol] || '' : '',
                     amount: amt,
                     desc: descCol >= 0 ? row[descCol] || '' : '',
-                    invoiceId: match?.id || '',
+                    invoiceId: '',
                 };
             })
             .filter(Boolean) as typeof matchRows;
-        setMatchRows(parsed);
+        setMatchRows(matchBankRows(parsed,unpaidInvoices));
+        setError('');
         setStep('match');
     };
 
     const handleExecute = () => {
+        if(selectionError){setError(selectionError);return;}
         startTransition(async () => {
-            let s = 0, f = 0;
-            for (const row of matchRows) {
-                if (!row.invoiceId) continue;
-                try { await markInvoiceAsPaid(row.invoiceId); s++; } catch { f++; }
-            }
-            setResults({ success: s, failed: f });
-            setStep('done');
+            setError('');
+            try {
+                const result=await reconcileBankRows(matchRows.filter(row=>row.invoiceId).map(row=>({invoiceId:row.invoiceId,amount:row.amount})));
+                setResults(result);setStep('done');
+            }catch(e){setError(e instanceof Error?e.message:'消込対象を確認できませんでした。');}
         });
     };
 
-    const reset = () => { setStep('upload'); setHeaders([]); setRows([]); setMatchRows([]); setResults({ success: 0, failed: 0 }); };
+    const reset = () => { setStep('upload'); setHeaders([]); setRows([]); setMatchRows([]); setResults({ success: 0, failed: 0 }); setError(''); };
 
     if (!open) return (
         <button onClick={() => setOpen(true)} className="flex items-center gap-2 bg-white border border-indigo-200 text-indigo-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm">
@@ -104,7 +107,7 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <Upload size={18} className="text-indigo-500" /> 銀行CSVインポートで消込
                 </h2>
-                <button onClick={() => { setOpen(false); reset(); }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                <button disabled={isPending} onClick={() => { setOpen(false); reset(); }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
 
             {/* Steps indicator */}
@@ -121,6 +124,7 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
             </div>
 
             <div className="p-6">
+                {(error||selectionError)&&<p role="alert" className="mb-4 rounded-lg bg-rose-50 p-3 text-rose-700">{error||selectionError}</p>}
                 {step === 'upload' && (
                     <div className="text-center py-8">
                         <input type="file" ref={fileRef} className="hidden" accept=".csv" onChange={handleFile} />
@@ -165,7 +169,8 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
 
                 {step === 'match' && (
                     <div className="space-y-4">
-                        <p className="text-sm text-slate-600"><span className="font-bold text-emerald-600">{matchRows.filter(r => r.invoiceId).length}</span>件が自動マッチ / 全{matchRows.length}件</p>
+                        <p className="text-sm text-slate-600"><span className="font-bold text-emerald-600">{matchRows.filter(r => r.invoiceId).length}</span>件を選択 / 全{matchRows.length}件</p>
+                        <p className="text-sm text-amber-800">同額の請求書や入金が複数ある場合は自動で紐づけません。摘要と請求書を確認し、1件ずつ選択してください。</p>
                         <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-[400px]">
                             <table className="w-full text-sm"><thead className="bg-slate-50 border-b border-slate-200 sticky top-0"><tr>
                                 <th className="py-2.5 px-4 text-left font-medium text-slate-500">日付</th>
@@ -179,11 +184,11 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
                                         <td className="py-2.5 px-4 text-right font-bold font-mono">¥{row.amount.toLocaleString()}</td>
                                         <td className="py-2.5 px-4 text-slate-600 max-w-[200px] truncate">{row.desc || '-'}</td>
                                         <td className="py-2.5 px-4">
-                                            <select value={row.invoiceId} onChange={e => { const n = [...matchRows]; n[i] = { ...n[i], invoiceId: e.target.value }; setMatchRows(n); }}
+                                            <select aria-label={`${i+1}行目の請求書`} disabled={isPending} value={row.invoiceId} onChange={e => { const n = [...matchRows]; n[i] = { ...n[i], invoiceId: e.target.value }; setMatchRows(n); }}
                                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-indigo-400">
                                                 <option value="">-- 未選択 --</option>
-                                                {unpaidInvoices.map(inv => (
-                                                    <option key={inv.id} value={inv.id}>{inv.invoice_number || '未発番'} / {inv.customer_name} / ¥{inv.total_amount.toLocaleString()}</option>
+                                                {unpaidInvoices.filter(inv=>Number(inv.total_amount)===row.amount).map(inv => (
+                                                    <option key={inv.id} value={inv.id} disabled={matchRows.some((other,index)=>index!==i&&other.invoiceId===inv.id)}>{inv.invoice_number || '未発番'} / {inv.customer_name} / ¥{inv.total_amount.toLocaleString()}</option>
                                                 ))}
                                             </select>
                                         </td>
@@ -192,8 +197,8 @@ export default function BankCsvImport({ unpaidInvoices }: { unpaidInvoices: Invo
                             </tbody></table>
                         </div>
                         <div className="flex items-center justify-between">
-                            <button onClick={() => setStep('configure')} className="text-sm font-bold text-slate-500 hover:text-slate-700">← 戻る</button>
-                            <button onClick={handleExecute} disabled={isPending || matchRows.filter(r => r.invoiceId).length === 0}
+                            <button disabled={isPending} onClick={() => setStep('configure')} className="text-sm font-bold text-slate-500 hover:text-slate-700">← 戻る</button>
+                            <button onClick={handleExecute} disabled={isPending || !!selectionError || matchRows.filter(r => r.invoiceId).length === 0}
                                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center gap-2">
                                 {isPending ? '処理中...' : <><Banknote size={16} /> {matchRows.filter(r => r.invoiceId).length}件を消込確定</>}
                             </button>

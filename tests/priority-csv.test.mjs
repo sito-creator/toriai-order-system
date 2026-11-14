@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {productCsvRows,csvRecords,decodeProductCsv} from '../utils/product-csv.ts';
+import {matchBankRows,bankSelectionError} from '../utils/bank-matching.ts';
+import Encoding from 'encoding-japanese';
+const csv='商品コード,商品名,標準単価,仕入単価,単位,カテゴリ,有効\r\nQA,"研修,商品",10000,5000,個,テスト,FALSE';
+let rows=productCsvRows('\uFEFF'+csv,'own');assert.equal(rows[0].standard_price,10000);assert.equal(rows[0].cost_price,5000);assert.equal(rows[0].price,10000);assert.equal(rows[0].is_active,false);assert.equal(rows[0].company_id,'own');
+rows=productCsvRows('商品名,販売価格,税率\n"改行\n商品","10,000",8%','own');assert.equal(rows.length,1);assert.equal(rows[0].product_name,'改行\n商品');assert.equal(rows[0].standard_price,10000);assert.equal(rows[0].tax_rate,8);
+rows=productCsvRows('product_name,standard_price,tax_rate,is_active\n無料,0,0,TRUE','own');assert.equal(rows[0].price,0);assert.equal(rows[0].tax_rate,0);assert.equal(rows[0].is_active,true);
+for(const text of ['商品名\n商品','商品名,標準単価\n商品,','商品名,標準単価\n商品,-1','商品名,標準単価\n商品,abc','商品名,標準単価\n商品,1.5','商品名,標準単価,有効\n商品,1,maybe','商品名,標準単価\n,100','商品名,標準単価\n商品,100,余剰','商品名,標準単価\n"閉じない,100','商品名,標準単価\n商品,9007199254740992','商品名,標準単価,商品コード\nA,1,DUP\nB,2,DUP'])assert.throws(()=>productCsvRows(text,'own'));
+const sjis=Uint8Array.from(Encoding.convert(Encoding.stringToCode(csv),{to:'SJIS',from:'UNICODE'}));assert.equal(decodeProductCsv(sjis.buffer),csv);assert.equal(decodeProductCsv(new TextEncoder().encode(csv).buffer),csv);
+assert.deepEqual(csvRecords('a,b\n"x""y",2'),[['a','b'],['x"y','2']]);
+const bank=amount=>({date:'2026-11-15',amount,desc:'仮'}),inv=(id,total_amount)=>({id,total_amount});
+assert.equal(matchBankRows([bank(100)],[inv('a',100)])[0].invoiceId,'a');
+assert.equal(matchBankRows([bank(100)],[inv('a',100),inv('b',100)])[0].invoiceId,'');
+assert.deepEqual(matchBankRows([bank(100),bank(100)],[inv('a',100)]).map(x=>x.invoiceId),['','']);
+assert.deepEqual(matchBankRows([bank(100),bank(100)],[inv('a',100),inv('b',100)]).map(x=>x.invoiceId),['','']);
+assert.ok(bankSelectionError([{invoiceId:'a',amount:100},{invoiceId:'a',amount:100}]));assert.ok(bankSelectionError([{invoiceId:'a',amount:100}],[inv('a',200)]));assert.equal(bankSelectionError([{invoiceId:'a',amount:100},{invoiceId:'b',amount:100}],[inv('a',100),inv('b',100)]),'');
+console.log('PASS: sample prices, zero, FALSE, tenant, UTF8/SJIS, multiline/quoted CSV; invalid values reject; ambiguous and duplicate matches stay unselected; duplicate/mismatched selection rejected');

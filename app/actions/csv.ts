@@ -1,6 +1,8 @@
 'use server';
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { getCurrentCompanyId } from '@/utils/auth';
+import { decodeProductCsv, productCsvRows } from '@/utils/product-csv';
 
 function parseCsv(contents: string): any[][] {
     const lines = contents.split(/\r?\n/).filter(line => line.trim().length > 0);
@@ -115,38 +117,14 @@ export async function importProductsCsv(formData: FormData) {
     const file = formData.get('file') as File;
     if (!file || !file.name) throw new Error('CSVファイルが選択されていません');
 
-    const text = await file.text();
-    const rows = parseCsv(text);
-    if (rows.length < 2) throw new Error('データが見つかりません');
-
-    const headers = processHeaders(rows[0]);
-    
-    const getIndex = (keys: string[]) => headers.findIndex(h => keys.some(k => h.includes(k)));
-    const idxCode = getIndex(['product_code', '商品コード']);
-    const idxName = getIndex(['product_name', '商品名']);
-    const idxStdPrice = getIndex(['standard_price', '標準価格', '販売価格']);
-    const idxCostPrice = getIndex(['cost_price', '仕入価格', '原価']);
-    const idxUnit = getIndex(['unit', '単位']);
-    const idxCategory = getIndex(['category', 'カテゴリ']);
-
-    if (idxName === -1) throw new Error('「商品名」が見つかりません');
-
-    const dataToInsert = rows.slice(1).map(row => ({
-        product_code: idxCode !== -1 ? row[idxCode] : null,
-        product_name: row[idxName] || '名称未設定',
-        standard_price: idxStdPrice !== -1 ? (Number(row[idxStdPrice]) || 0) : 0,
-        cost_price: idxCostPrice !== -1 ? (Number(row[idxCostPrice]) || 0) : 0,
-        unit: idxUnit !== -1 ? row[idxUnit] : '個',
-        category: idxCategory !== -1 ? row[idxCategory] : null,
-        is_active: true,
-    })).filter(r => r.product_name && r.product_name !== '名称未設定');
-
+    const companyId = await getCurrentCompanyId();
+    const dataToInsert = productCsvRows(decodeProductCsv(await file.arrayBuffer()), companyId);
     const supabase = await createClient();
-    const { error } = await supabase.from('products').insert(dataToInsert);
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/products');
-    return { success: true, count: dataToInsert.length };
+    const {data,error} = await supabase.from('products').insert(dataToInsert).select('id');
+    if(error)throw new Error(error.code==='23505'?'商品コードが既に登録されています。CSVと商品一覧をご確認ください。':'商品CSVを保存できませんでした。入力内容と権限をご確認ください。');
+    if(!data || data.length!==dataToInsert.length)throw new Error('商品CSVの登録件数を確認できませんでした。再取込前に商品一覧をご確認ください。');
+    revalidatePath('/products');revalidatePath('/pos');revalidatePath('/orders/new');
+    return {success:true,count:data.length};
 }
 
 export async function importSupplierProductsCsv(formData: FormData) {
