@@ -36,4 +36,10 @@ export default function DeleteMasterButton({ id, name, entityLabel, action }: Pr
                 <h2 id={titleId} className="text-lg font-bold text-slate-900">{entityLabel}の削除確認</h2>
                 <p id={descriptionId} className="mt-4 text-slate-700 break-words">「{name}」を削除します。この操作は取り消せません。</p>
                 <form action={action}>
-                    <input type="hidden" name="confirm_de
+                    <input type="hidden" name="confirm_delete" value={id} />
+                    <DeleteControls onCancel={() => dialog.current?.close()} />
+                </form>
+            </dialog>
+        </>
+    );
+}
