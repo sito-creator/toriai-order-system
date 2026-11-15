@@ -1,8 +1,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { Save, ArrowLeft, Trash2, AlertCircle, Building2 } from 'lucide-react';
+import { Save, ArrowLeft, AlertCircle, Building2 } from 'lucide-react';
 import Link from 'next/link';
+import DeleteMasterButton from '@/app/components/delete-master-button';
+import { SUPPLIER_PAYMENT_TERMS, masterTermOptions } from '@/utils/master-term-options';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,8 +53,11 @@ export default async function EditSupplierPage({
         redirect(`/suppliers/${id}/edit?success=1`);
     }
 
-    async function deleteSupplier() {
+    async function deleteSupplier(formData: FormData) {
         'use server';
+        if (formData.get('confirm_delete') !== id) {
+            redirect(`/suppliers/${id}/edit?error=${encodeURIComponent('削除確認を行ってください。')}`);
+        }
         const supabase = await createClient();
         const { error } = await supabase.from('suppliers').delete().eq('id', id);
         if (error) {
@@ -76,12 +81,7 @@ export default async function EditSupplierPage({
                     </h1>
                     <p className="text-slate-500 mt-1">{supplier.company_name} の情報を変更します</p>
                 </div>
-                <form action={deleteSupplier}>
-                    <button type="submit" className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-sm transition-colors border border-red-200">
-                        <Trash2 size={16} />
-                        <span>削除</span>
-                    </button>
-                </form>
+                <DeleteMasterButton id={id} name={supplier.company_name} entityLabel="仕入先" action={deleteSupplier} />
             </div>
 
             {query.error && (
@@ -121,13 +121,10 @@ export default async function EditSupplierPage({
                             <input name="phone" type="tel" defaultValue={supplier.phone || ''} placeholder="例: 03-1234-5678" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-medium" />
                         </div>
                         <div className="space-y-2 md:col-span-2">
-                            <label className="text-sm font-bold text-slate-700">支払条件</label>
-                            <select name="payment_terms" defaultValue={supplier.payment_terms || '月末締め翌月末払い'} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
-                                <option value="月末締め翌月末払い">月末締め翌月末払い</option>
-                                <option value="月末締め翌々月末払い">月末締め翌々月末払い</option>
-                                <option value="20日締め翌月20日払い">20日締め翌月20日払い</option>
-                                <option value="前払い">前払い</option>
-                                <option value="代金引換">代金引換</option>
+                            <label htmlFor="payment_terms" className="text-sm font-bold text-slate-700">支払条件</label>
+                            <select id="payment_terms" name="payment_terms" defaultValue={supplier.payment_terms ?? ''} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
+                                <option value="">未設定</option>
+                                {masterTermOptions(supplier.payment_terms, SUPPLIER_PAYMENT_TERMS).map(value => <option key={value} value={value}>{value}</option>)}
                             </select>
                         </div>
                     </div>

@@ -1,8 +1,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { Save, ArrowLeft, Trash2, AlertCircle } from 'lucide-react';
+import { Save, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import DeleteMasterButton from '@/app/components/delete-master-button';
+import { CUSTOMER_CLOSING_DAYS, CUSTOMER_PAYMENT_TERMS, masterTermOptions } from '@/utils/master-term-options';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,8 +55,11 @@ export default async function EditCustomerPage({
         redirect(`/customers/${id}/edit?success=1`);
     }
 
-    async function deleteCustomer() {
+    async function deleteCustomer(formData: FormData) {
         'use server';
+        if (formData.get('confirm_delete') !== id) {
+            redirect(`/customers/${id}/edit?error=${encodeURIComponent('削除確認を行ってください。')}`);
+        }
         const supabase = await createClient();
         const { error } = await supabase.from('customers').delete().eq('id', id);
         if (error) {
@@ -75,12 +80,7 @@ export default async function EditCustomerPage({
                     <h1 className="text-2xl font-bold text-slate-900">顧客情報の編集</h1>
                     <p className="text-slate-500 mt-1">{customer.company_name} の情報を変更します</p>
                 </div>
-                <form action={deleteCustomer}>
-                    <button type="submit" className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-sm transition-colors border border-red-200">
-                        <Trash2 size={16} />
-                        <span>削除</span>
-                    </button>
-                </form>
+                <DeleteMasterButton id={id} name={customer.company_name} entityLabel="顧客" action={deleteCustomer} />
             </div>
 
             {query.error && (
@@ -120,20 +120,17 @@ export default async function EditCustomerPage({
                             <input name="phone" type="tel" defaultValue={customer.phone || ''} placeholder="例: 03-1234-5678" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-medium" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">請求締日</label>
-                            <select name="closing_day" defaultValue={customer.closing_day || '月末締め'} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
-                                <option value="月末締め">月末締め</option>
-                                <option value="20日締め">20日締め</option>
-                                <option value="15日締め">15日締め</option>
-                                <option value="随時">随時</option>
+                            <label htmlFor="closing_day" className="text-sm font-bold text-slate-700">請求締日</label>
+                            <select id="closing_day" name="closing_day" defaultValue={customer.closing_day ?? ''} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
+                                <option value="">未設定</option>
+                                {masterTermOptions(customer.closing_day, CUSTOMER_CLOSING_DAYS).map(value => <option key={value} value={value}>{value}</option>)}
                             </select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">支払条件（回収日）</label>
-                            <select name="payment_terms" defaultValue={customer.payment_terms || '翌月末払い'} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
-                                <option value="翌月末払い">翌月末払い</option>
-                                <option value="翌々月末払い">翌々月末払い</option>
-                                <option value="翌月20日払い">翌月20日払い</option>
+                            <label htmlFor="payment_terms" className="text-sm font-bold text-slate-700">支払条件（回収日）</label>
+                            <select id="payment_terms" name="payment_terms" defaultValue={customer.payment_terms ?? ''} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
+                                <option value="">未設定</option>
+                                {masterTermOptions(customer.payment_terms, CUSTOMER_PAYMENT_TERMS).map(value => <option key={value} value={value}>{value}</option>)}
                             </select>
                         </div>
                     </div>
