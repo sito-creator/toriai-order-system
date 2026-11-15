@@ -1,6 +1,7 @@
 import SaveForm from '@/app/components/save-form';
 import { createInvoice } from '@/app/actions/save-documents';
 import { inheritedLines } from '@/utils/document-lines';
+import { japanDate } from '@/utils/business-date';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import { getCurrentCompanyId } from '@/utils/auth';
@@ -20,7 +21,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
     let initialLines: any[] = [];
     let sourceType: 'quote' | 'order' | null = null;
     let taxNotice = '';
-    const today = new Date().toISOString().split('T')[0];
+    const today = japanDate();
     const sourceId = resolvedSearchParams.quoteId || resolvedSearchParams.orderId;
     if (sourceId) {
         sourceType = resolvedSearchParams.quoteId ? 'quote' : 'order';
@@ -30,7 +31,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
         sourceData=record;
         const {data:lines,error:lineError} = await supabase.from(sourceType==='quote'?'quote_lines':'order_lines').select('*').eq(sourceType==='quote'?'quote_id':'order_id',record.id).eq('company_id',companyId).order('line_no');
         if(lineError) throw new Error('元の明細を取得できませんでした。');
-        const inherited=inheritedLines(lines||[],products||[],sourceType,Number(record.total_amount),today);
+        const inherited=inheritedLines(lines||[],products||[],sourceType,Number(record.total_amount),today,record.delivery_date);
         initialLines=inherited.lines;
         if(inherited.legacyInferred)taxNotice='旧形式の見積の税率を保存済み合計額から復元しました。税率と金額をご確認ください。';
         if(inherited.needsTaxReview)taxNotice='元の見積に税率情報がありません。各明細の税率を確認・選択してから保存してください。';
@@ -38,7 +39,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
     const activeProducts=(products||[]).filter(product=>product.is_active!==false || initialLines.some(line=>line.product_id===product.id));
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
                 <Link href="/invoices" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                     <ArrowLeft size={20} />
@@ -68,7 +69,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700">請求日（取引年月日）</label>
-                        <input type="date" name="issue_date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl py-2.5 px-3 focus:bg-white focus:border-indigo-500 focus:ring-2 outline-none" />
+                        <input type="date" name="issue_date" required defaultValue={today} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl py-2.5 px-3 focus:bg-white focus:border-indigo-500 focus:ring-2 outline-none" />
                     </div>
 
                     <div className="space-y-2">

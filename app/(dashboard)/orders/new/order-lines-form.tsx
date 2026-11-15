@@ -1,7 +1,8 @@
 'use client';
 import {productPrice} from '@/utils/product-price';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
+import { japanDate } from '@/utils/business-date';
 import { Plus, Trash2, Package } from 'lucide-react';
 
 type Product = {
@@ -28,7 +29,6 @@ type Line = {
 
 export default function OrderLinesForm({ products, initialLines = [], title = "受注明細", showDeliveryDate = false }: { products: Product[], initialLines?: Line[], title?: string, showDeliveryDate?: boolean }) {
     const [lines, setLines] = useState<Line[]>(initialLines);
-    const hiddenInput = useRef<HTMLInputElement>(null);
 
     const addLine = () => {
         setLines(prev => [...prev, {
@@ -39,7 +39,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
             amount: 0,
             tax_rate: 10,
             tax_amount: 0,
-            delivery_date: showDeliveryDate ? new Date().toISOString().split('T')[0] : undefined,
+            delivery_date: showDeliveryDate ? japanDate() : undefined,
             unit: '',
         }]);
     };
@@ -110,12 +110,13 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                         <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-indigo-200 transition-colors">
                             <div className="flex items-start gap-3">
                                 <span className="text-xs font-bold text-slate-400 bg-white border border-slate-200 rounded-lg w-7 h-7 flex items-center justify-center mt-6 shrink-0">{i + 1}</span>
-                                <div className={`flex-1 grid grid-cols-1 gap-3 ${showDeliveryDate ? 'md:grid-cols-7' : 'md:grid-cols-6'}`}>
+                                <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                                     {showDeliveryDate && (
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-500">納品日</label>
                                             <input
                                                 type="date"
+                                                aria-label={`明細${i + 1}の納品日`}
                                                 required
                                                 value={line.delivery_date || ''}
                                                 onChange={(e) => updateLine(i, 'delivery_date', e.target.value)}
@@ -123,13 +124,15 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                                             />
                                         </div>
                                     )}
-                                    <div className="md:col-span-2 space-y-1">
+                                    <div className="sm:col-span-2 min-w-0 space-y-1">
                                         <label className="text-xs font-bold text-slate-500 flex items-center justify-between">
                                             <span>商品</span>
                                             <a href="/products/new" target="_blank" className="text-[10px] text-indigo-600 hover:text-indigo-800 font-normal">マスタ追加</a>
                                         </label>
                                         <select
                                             value={line.product_id}
+                                            aria-label={`明細${i + 1}の商品`}
+                                            title={line.product_name}
                                             onChange={(e) => updateLine(i, 'product_id', e.target.value)}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2 cursor-pointer"
                                         >
@@ -149,6 +152,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                                             type="number"
                                             min="0"
                                             value={line.quantity}
+                                            aria-label={`明細${i + 1}の数量`}
                                             onChange={(e) => updateLine(i, 'quantity', Number(e.target.value))}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold font-mono outline-none focus:border-indigo-500 focus:ring-2"
                                         />
@@ -159,6 +163,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                                             type="number"
                                             min="0"
                                             value={line.unit_price}
+                                            aria-label={`明細${i + 1}の単価`}
                                             onChange={(e) => updateLine(i, 'unit_price', Number(e.target.value))}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold font-mono outline-none focus:border-indigo-500 focus:ring-2"
                                         />
@@ -167,6 +172,7 @@ export default function OrderLinesForm({ products, initialLines = [], title = "�
                                         <label className="text-xs font-bold text-slate-500">税率区分</label>
                                         <select
                                             value={line.tax_rate}
+                                            aria-label={`明細${i + 1}の税率区分`}
                                             onChange={(e) => updateLine(i, 'tax_rate', Number(e.target.value))}
                                             className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2"
                                         >

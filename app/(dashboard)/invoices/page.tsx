@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { Plus, Search } from 'lucide-react';
 import StatusFilter from '@/app/components/status-filter';
 import InvoicesTable from '@/app/components/invoices-table';
+import { isPostedInvoice } from '@/utils/accounting-status';
+import { isInvoiceOverdue } from '@/utils/business-date';
 
 const INVOICE_STATUSES = [
     { label: '下書き', color: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -24,27 +26,27 @@ export default async function InvoicesPage({
     const supabase = await createClient();
     const companyId = await getCurrentCompanyId();
 
-    let dbQuery = supabase
+    const dbQuery = supabase
         .from('invoices')
         .select('*, customers(company_name)')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
 
-    if (query.status) {
-        dbQuery = dbQuery.eq('status', query.status);
-    }
-
     const { data: invoices } = await dbQuery;
+    const now = new Date();
 
     const serializedInvoices = (invoices || []).map((inv: any) => ({
         id: inv.id,
         invoice_number: inv.invoice_number,
-        status: inv.status,
+        // Derive overdue using the same JST date rule as the payments screen.
+        // Do not change stored status, or include drafts and paid invoices.
+        status: isPostedInvoice(inv) && inv.status !== '入金済' && isInvoiceOverdue(inv.due_date, now)
+            ? '期日超過' : inv.status,
         total_amount: inv.total_amount,
         issue_date: inv.issue_date,
         due_date: inv.due_date,
         customer_name: inv.customers?.company_name || null,
-    }));
+    })).filter(inv => !query.status || inv.status === query.status);
 
     return (
         <div className="space-y-6">
