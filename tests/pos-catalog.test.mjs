@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { categoryInput, displaySettings, defaultPosSettings, catalogPage, stockAllows, imageRoute, categoryTextColor } from '../utils/pos-catalog.ts';
+assert.deepEqual(displaySettings(defaultPosSettings),defaultPosSettings);
+for(const x of [{...defaultPosSettings,card_mode:'html'},{...defaultPosSettings,show_images:'true'},{...defaultPosSettings,product_sort:'sql'}])assert.throws(()=>displaySettings(x));
+assert.equal(categoryInput({name:'  カット ',color:'#FFFFFF',is_visible:false}).name,'カット');
+for(const x of [{name:'',color:'#fff',is_visible:true},{name:'x',color:'red;url(x)',is_visible:true}])assert.throws(()=>categoryInput(x));
+assert.equal(catalogPage(new URLSearchParams('q=a%25,b_(foo)')).search.includes('%'),false);
+assert.throws(()=>catalogPage(new URLSearchParams('page=-1')));
+assert.throws(()=>catalogPage(new URLSearchParams('category=invalid')));
+assert.equal(stockAllows({track_inventory:true,stock:2},3),false);
+assert.equal(stockAllows({track_inventory:false,stock:null},999),true);
+assert.equal(stockAllows({track_inventory:false,stock:null},1000),false);
+assert.equal(imageRoute('id',null),null);
+assert.equal(imageRoute('id','company/image.webp'),'/api/products/id/image?v=image.webp');
+assert.equal(categoryTextColor('#FFFFFF'),'#0F172A');
+assert.equal(categoryTextColor('#000000'),'#FFFFFF');
+console.log('PASS: settings/category validation, bounded pagination, filter escaping, stock limits, image route and contrast');

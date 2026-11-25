@@ -1,6 +1,7 @@
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import ProductForm from './product-form';
+import ProductCatalogSection from '../catalog-section';
 
 export default function NewProductPage() {
     return (
@@ -46,15 +47,6 @@ export default function NewProductPage() {
                             </select>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">カテゴリ</label>
-                            <select name="category" className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
-                                <option value="ハードウェア">ハードウェア</option>
-                                <option value="ソフトウェア">ソフトウェア</option>
-                                <option value="サービス">サービス保守</option>
-                                <option value="ライセンス">ライセンス</option>
-                            </select>
-                        </div>
 
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">適用税率</label>
@@ -71,6 +63,7 @@ export default function NewProductPage() {
                                 <span className="text-sm font-bold text-slate-700">販売開始としてシステムに表示する</span>
                             </label>
                         </div>
+                        <ProductCatalogSection />
                     </div>
 
                     <div className="pt-8 border-t border-slate-100 flex justify-end gap-3 mt-4">

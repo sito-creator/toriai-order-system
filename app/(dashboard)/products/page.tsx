@@ -20,7 +20,8 @@ export default async function ProductsPage() {
                     <h1 className="text-2xl font-bold text-slate-900">商品管理</h1>
                     <p className="text-slate-500 mt-1">自社の商品およびサービスマスタを管理します</p>
                 </div>
-                <div className="flex bg-white items-center gap-2">
+                <div className="flex flex-wrap bg-white items-center gap-2">
+                    <Link href="/products/pos-settings" className="min-h-11 rounded-xl border px-4 py-3 font-semibold text-indigo-700">カテゴリー・POS表示設定</Link>
                     <CsvImportButton 
                         action={importProductsCsv} 
                         label="CSV取込" 

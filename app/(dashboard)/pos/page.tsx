@@ -1,13 +1,12 @@
-import {productPrice} from '@/utils/product-price';
-import { createClient } from '@/utils/supabase/server';
+import { readCatalog } from '@/utils/pos-catalog-server';
 import PosRegister from './register';
 
 export default async function PosPage() {
-    const db = await createClient();
-    const { data: { user } } = await db.auth.getUser();
-    const { data: profile } = user ? await db.from('profiles').select('company_id').eq('id', user.id).single() : { data: null };
-    if (!profile?.company_id) return <p>ログインと会社設定を確認してください。</p>;
-    const { data, error } = await db.from('products').select('*').eq('company_id', profile.company_id).eq('is_active', true).order('product_name');
-    if (error) return <p>商品を読み込めませんでした。</p>;
-    return <PosRegister products={(data || []).map(p => ({ id: p.id, name: p.product_name, price: productPrice(p), tax_rate: Number(p.tax_rate ?? 10), category: p.category || 'サービス', stock:p.stock, track_inventory:Boolean(p.track_inventory) }))} />;
+    let initial;
+    try {
+        initial = await readCatalog(new URLSearchParams());
+    } catch {
+        return <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-700">商品を取得できません。ログインと会社設定、データベース設定を確認して再読み込みしてください。</p>;
+    }
+    return <PosRegister initialCatalog={initial}/>;
 }

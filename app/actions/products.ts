@@ -19,26 +19,37 @@ async function saveProduct(form: FormData, id?: string): Promise<{ id?: string; 
     } catch (error) {
         return { error: (error as Error).message };
     }
+    let catalog: Awaited<ReturnType<typeof import('@/utils/product-catalog-save').prepareProductCatalog>> | undefined;
     try {
         const supabase = await createClient();
-        const { company_id, ...fields } = payload;
+        if (form.get('catalog_fields') === '1') {
+            const { prepareProductCatalog } = await import('@/utils/product-catalog-save');
+            catalog = await prepareProductCatalog(form, companyId, supabase, id);
+        }
+        const { company_id, ...fields } = { ...payload, ...catalog?.fields };
         // Keep the legacy price in sync for older consumers.
         const query = id
             ? supabase.from('products').update({ ...fields, price: fields.standard_price }).eq('id', id).eq('company_id', company_id)
-            : supabase.from('products').insert(payload);
+            : supabase.from('products').insert({ ...payload, ...catalog?.fields });
         const { data, error } = await query.select('id').maybeSingle();
         if (error) {
+            await catalog?.failure();
             console.error('Product save failed', { code: error.code, operation: id ? 'update' : 'insert' });
             return { error: productSaveError(error.code) };
         }
-        if (!data?.id) return { error: id ? '商品が見つからないか、編集権限がありません。商品一覧をご確認ください。' : productSaveError() };
+        if (!data?.id) {
+            await catalog?.failure();
+            return { error: id ? '商品が見つからないか、編集権限がありません。商品一覧をご確認ください。' : productSaveError() };
+        }
+        await catalog?.success();
         revalidatePath('/products');
         revalidatePath('/pos');
         revalidatePath('/dashboard');
         if (id) revalidatePath(`/products/${id}`);
         return { id: data.id };
-    } catch {
-        return { error: productSaveError() };
+    } catch (error) {
+        await catalog?.failure();
+        return { error: form.get('catalog_fields') === '1' ? (error as Error).message : productSaveError() };
     }
 }
 

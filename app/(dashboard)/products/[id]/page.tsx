@@ -6,6 +6,7 @@ import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { getCurrentCompanyId } from '@/utils/auth';
 import { updateProduct } from '@/app/actions/products';
 import ProductForm from '../new/product-form';
+import ProductCatalogSection from '../catalog-section';
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -80,16 +81,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                             </select>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">カテゴリ</label>
-                            <select name="category" defaultValue={product.category || 'ハードウェア'} className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg py-2.5 px-3 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 transition-all font-bold cursor-pointer">
-                                <option value="ハードウェア">ハードウェア</option>
-                                <option value="ソフトウェア">ソフトウェア</option>
-                                <option value="サービス">サービス保守</option>
-                                <option value="ライセンス">ライセンス</option>
-                                <option value="消耗品">消耗品</option>
-                            </select>
-                        </div>
 
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700">適用税率</label>
@@ -106,6 +97,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                                 <span className="text-sm font-bold text-slate-700">販売中としてシステムに表示する</span>
                             </label>
                         </div>
+                        <ProductCatalogSection product={product} />
                     </div>
 
                     <div className="pt-8 border-t border-slate-100 flex justify-end gap-3 mt-4">
