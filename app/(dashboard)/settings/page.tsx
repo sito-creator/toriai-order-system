@@ -5,7 +5,7 @@ import { Settings as SettingsIcon, User, Building2, Bell, Key, Database, Globe, 
 import CsvFormatConfig from './csv-format-config';
 import StripeConnectSettings from './stripe-connect-settings';
 import { useRef } from 'react';
-import { getCurrentCompanyInfo, getCompanyMembers, updateCompanyInfo, getCompanyInvitations, inviteUserToCompany, cancelInvitation, getCompanySettings, updateCompanySettings, getTaxRates, getBankAccounts, saveTaxRate, deleteTaxRate, saveBankAccount, deleteBankAccount, uploadCompanyAsset, getCompanyInviteCode, regenerateInviteCode, removeMember } from '@/app/actions/settings';
+import { getSettingsPageData, getCompanyMembers, updateCompanyInfo, getCompanyInvitations, inviteUserToCompany, cancelInvitation, updateCompanySettings, getTaxRates, getBankAccounts, saveTaxRate, deleteTaxRate, saveBankAccount, deleteBankAccount, uploadCompanyAsset, regenerateInviteCode, removeMember } from '@/app/actions/settings';
 
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('company');
@@ -41,64 +41,28 @@ export default function SettingsPage() {
     const [isRegenerating, setIsRegenerating] = useState(false);
 
     const loadSettingsData = async () => {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
-            console.log("Loading settings data: Start");
-            
-            // Promise.raceを追加してサーバーアクションがタイムアウトするか検証します
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("サーバーの応答がタイムアウトしました。Next.jsサーバーを再起動してみてください。")), 10000)
-            );
-            
-            console.log("Fetching company info...");
-            const info: any = await Promise.race([
-                getCurrentCompanyInfo(),
-                timeoutPromise
+            const data = await Promise.race([
+                getSettingsPageData(),
+                new Promise<never>((_, reject) => {
+                    timeout = setTimeout(() => reject(new Error('設定の読み込みがタイムアウトしました。再読み込みしてください。')), 15000);
+                }),
             ]);
-            
-            console.log("Company info loaded:", info);
-            
-            if (info?.error) {
-                throw new Error(info.error);
-            }
-            
-            const comp = Array.isArray(info.company) ? info.company[0] : info.company;
-            setCompany(comp);
-            setMyRole(info.myRole);
-            setMyId(info.myProfileId);
-            
-            if (comp && comp.id) {
-                console.log("Fetching members and invitations...");
-                const [memberList, inviteList, settingsData, taxData, bankData]: any = await Promise.race([
-                    Promise.all([
-                        getCompanyMembers(comp.id),
-                        getCompanyInvitations(comp.id),
-                        getCompanySettings(comp.id),
-                        getTaxRates(comp.id),
-                        getBankAccounts(comp.id)
-                    ]),
-                    timeoutPromise
-                ]);
-                
-                console.log("Members loaded:", memberList?.length);
-                setMembers(memberList);
-                setInvitations(inviteList);
-                setCompanySettings(settingsData);
-                setTaxRates(taxData);
-                setBankAccounts(bankData);
-                
-                // 招待コードを取得
-                try {
-                    const codes = await getCompanyInviteCode(comp.id);
-                    setInviteCode(codes?.staffInviteCode || null);
-                } catch (e) {
-                    console.log('invite_code not available yet');
-                }
-            }
+            setCompany(data.company);
+            setMyRole(data.myRole);
+            setMyId(data.myProfileId);
+            setMembers(data.members);
+            setInvitations(data.invitations);
+            setCompanySettings(data.settings);
+            setTaxRates(data.taxRates);
+            setBankAccounts(data.bankAccounts);
+            setInviteCode(data.codes?.staffInviteCode || null);
         } catch (err: any) {
             console.error("Failed to load settings:", err);
             setMessage("エラーが発生しました: " + err.message);
         } finally {
-            console.log("Loading settings data: End");
+            clearTimeout(timeout);
             setIsLoading(false);
         }
     };

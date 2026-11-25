@@ -23,6 +23,7 @@ import {
     Building2
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import NavigationPending from '@/app/components/navigation-pending';
 
 const ToriaiLogo = ({ size = 24 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -194,6 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                             >
                                                 <span className={isActive ? 'text-white' : 'text-slate-500'}>{item.icon}</span>
                                                 <span>{item.name}</span>
+                                                <NavigationPending />
                                             </Link>
                                         );
                                     })}

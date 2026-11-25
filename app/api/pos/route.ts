@@ -18,9 +18,11 @@ async function context() {
 export async function GET() {
     try {
         const { db, profile } = await context();
-        const { data, error } = await db.from('pos_sales').select('*').eq('company_id', profile.company_id).order('created_at', { ascending: false }).limit(300);
+        const [{ data, error }, { data: products }] = await Promise.all([
+            db.from('pos_sales').select('*').eq('company_id', profile.company_id).order('created_at', { ascending: false }).limit(300),
+            db.from('products').select('id,stock,track_inventory').eq('company_id',profile.company_id),
+        ]);
         if (error) return Response.json({ error: 'POS売上を取得できません。POS用データベース設定を確認してください。' }, { status: 503 });
-        const { data: products } = await db.from('products').select('id,stock,track_inventory').eq('company_id',profile.company_id);
         return Response.json({ sales: data, products });
     } catch (e) { return Response.json({ error: (e as Error).message }, { status: 401 }); }
 }
@@ -54,9 +56,11 @@ export async function POST(request: Request) {
         if (body.expected_total !== totals.total) return Response.json({ error: '商品価格が更新されました。画面を再読み込みして会計金額をご確認ください。', retryable: false }, { status: 409 });
         const received = method === 'card' ? totals.total : body.received;
         if (!totals.total || !Number.isSafeInteger(received) || received < totals.total || received > 99999999) throw new Error('預かり金額を確認してください。');
-        const { data: company } = await db.from('companies').select('*').eq('id', profile.company_id).single();
+        const [{ data: company }, { data: settings }] = await Promise.all([
+            db.from('companies').select('*').eq('id', profile.company_id).single(),
+            db.from('company_settings').select('*').eq('company_id', profile.company_id).maybeSingle(),
+        ]);
         if (!company?.name) throw new Error('発行事業者の会社情報を確認してください。');
-        const { data: settings } = await db.from('company_settings').select('*').eq('company_id', profile.company_id).maybeSingle();
         const sale = { id: body.id, company_id: profile.company_id, created_by: user.id, lines, issuer: { name: company?.name, address: settings?.address || company?.address, registration_number: settings?.registration_number || company?.registration_number }, subtotal: totals.subtotal, tax: totals.tax, total: totals.total, received, change: received - totals.total, payment_method: method, status: method === 'card' ? 'pending' : 'paid', stripe_account_id: stripeAccount };
         const { data, error: saveError } = await admin.rpc('pos_create_sale',{p_sale:sale});
         if (saveError) {

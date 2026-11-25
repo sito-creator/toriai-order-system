@@ -3,6 +3,23 @@
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 
+// One browser request instead of seven queued Server Action round-trips.
+// The company comes from the authenticated profile, never a caller argument.
+export async function getSettingsPageData() {
+    const info = await getCurrentCompanyInfo();
+    if (info.error) throw new Error(info.error);
+    if (!info.myProfileId) throw new Error('認証されていません');
+    const company = Array.isArray(info.company) ? info.company[0] : info.company;
+    if (!company?.id) throw new Error('会社情報を確認できません。');
+    const [members, invitations, settings, taxRates, bankAccounts, codes] = await Promise.all([
+        getCompanyMembers(company.id), getCompanyInvitations(company.id),
+        getCompanySettings(company.id), getTaxRates(company.id), getBankAccounts(company.id),
+        getCompanyInviteCode(company.id).catch(() => null),
+    ]);
+    return { company, myRole: info.myRole, myProfileId: info.myProfileId,
+        members, invitations, settings, taxRates, bankAccounts, codes };
+}
+
 // 現在のログインユーザーの所属会社情報を取得
 export async function getCurrentCompanyInfo() {
     const supabase = await createClient();

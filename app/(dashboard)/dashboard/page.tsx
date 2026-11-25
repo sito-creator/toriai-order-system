@@ -18,35 +18,39 @@ export default async function DashboardPage() {
     }
 
     // 全受注データ（created_at, total_amount, status, source_type を取得）
-    const { data: allOrders } = await supabase
+    // These independent company-scoped reads should share a single network wait.
+    const [{ data: allOrders }, { data: allPurchases }, { data: allInvoices },
+        { count: customerCount }, { count: productCount }] = await Promise.all([
+        supabase
         .from('orders')
         .select('id, created_at, total_amount, status, order_number, source_type, customer_id, customers ( company_name )')
         .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }),
 
     // 全発注データ
-    const { data: allPurchases } = await supabase
+        supabase
         .from('purchases')
         .select('id, created_at, total_amount, status')
-        .eq('company_id', companyId);
+        .eq('company_id', companyId),
 
     // 全請求書データ
-    const { data: allInvoices } = await supabase
+        supabase
         .from('invoices')
         .select('id, created_at, total_amount, status')
-        .eq('company_id', companyId);
+        .eq('company_id', companyId),
 
     // 顧客数
-    const { count: customerCount } = await supabase
+        supabase
         .from('customers')
         .select('*', { count: 'exact', head: true })
-        .eq('company_id', companyId);
+        .eq('company_id', companyId),
 
     // 商品数
-    const { count: productCount } = await supabase
+        supabase
         .from('products')
         .select('*', { count: 'exact', head: true })
-        .eq('company_id', companyId);
+        .eq('company_id', companyId),
+    ]);
 
     // Supabase の結合結果は型定義上配列になる場合があるため、画面用に単一の顧客へ正規化する。
     const orders = (allOrders || []).filter(isRecognizedOrder).map((order) => ({

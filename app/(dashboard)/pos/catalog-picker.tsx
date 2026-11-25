@@ -1,6 +1,6 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- Private image endpoints need session cookies; uploads are already resized and encoded as WebP. Blob previews also require a browser image element. */
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Search, Star, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import type { CatalogProduct, PosCategory, PosDisplaySettings } from '@/utils/pos-catalog';
@@ -17,10 +17,20 @@ export default function CatalogPicker({ initial, disabled, onAdd, onProducts, qu
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('all');
     const [page, setPage] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(Boolean(inventory));
     const [error, setError] = useState('');
     const [revision, setRevision] = useState(0);
+    const firstLoad = useRef(true);
+    const previousSearch = useRef('');
     useEffect(() => {
+        // The server already fetched this exact register page. Do not block its
+        // ready-to-use cards on a second auth + catalog round-trip.
+        if (firstLoad.current) {
+            firstLoad.current = false;
+            if (!inventory) return;
+        }
+        const searchChanged = previousSearch.current !== search;
+        previousSearch.current = search;
         const abort = new AbortController();
         const timer = setTimeout(async () => {
             setLoading(true);
@@ -31,7 +41,7 @@ export default function CatalogPicker({ initial, disabled, onAdd, onProducts, qu
                 if (!abort.signal.aborted) { setData(next); onProducts(next.products); setError(''); }
             } catch(e) { if (!abort.signal.aborted) setError((e as Error).message); }
             finally { if(!abort.signal.aborted) setLoading(false); }
-        }, 220);
+        }, searchChanged ? 220 : 0);
         return () => { abort.abort(); clearTimeout(timer); };
     }, [search, category, page, inventory, onProducts, revision, request]);
     useEffect(() => {
